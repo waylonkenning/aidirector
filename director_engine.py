@@ -289,8 +289,12 @@ def scan_folder(folder_path):
                     added_count += 1
                     log(f"  Ingested: {f} (Dur: {duration:.1f}s, Date: {created_str})")
 
+            except sqlite3.IntegrityError:
+                # Path already exists in DB (can happen if cache was stale)
+                skipped_count += 1
+
             except Exception as e:
-                log(f"  Failed extracting metadata for {f}: {e}")
+                log(f"  Error processing {f}: {e}")
 
     conn.commit()
     conn.close()
