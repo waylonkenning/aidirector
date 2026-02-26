@@ -78,8 +78,9 @@ def init_db(db_path):
     conn.commit()
     conn.close()
 
-def _isolate_whisper(path):
+def _isolate_whisper(path, model=None):
     """Run mlx_whisper in a child process to avoid EXC_BAD_ACCESS crashes under Uvicorn."""
+    chosen_model = model or WHISPER_MODEL
     code = """
 import mlx_whisper, json, sys
 try:
@@ -91,7 +92,7 @@ except Exception:
     sys.exit(1)
 """
     try:
-        proc = subprocess.run(["python3", "-c", code, path, WHISPER_MODEL],
+        proc = subprocess.run(["python3", "-c", code, path, chosen_model],
                               capture_output=True, text=True, timeout=300)
         out = proc.stdout
         if "JSON_START" in out and "JSON_END" in out:
@@ -99,6 +100,59 @@ except Exception:
     except Exception as e:
         log(f"  Whisper subprocess error: {e}")
     return {'text': '', 'segments': []}
+
+# Best available Whisper model — all transcription paths use this
+UPGRADE_WHISPER_MODEL = "mlx-community/whisper-large-v3-mlx"
+
+def transcribe_single_video(vid_id, path, filename, dur, conn, cursor):
+    """
+    Transcribe one video using the best available Whisper model.
+    Writes the result directly to the DB and returns the transcript text (or "" for B-roll).
+    Raises on hard failure so callers can surface the error.
+    """
+    result = _isolate_whisper(path, UPGRADE_WHISPER_MODEL)
+    text = result.get('text', '').strip()
+
+    word_count = len(text.split())
+    hallucinated_phrases = ["subtitles", "amara.org", "thanks for watching", "music", "♪", "transcript", "thank you"]
+    is_halluc_phrase = word_count < 30 and any(phrase in text.lower() for phrase in hallucinated_phrases)
+
+    is_impossible_rate = False
+    try:
+        dur_float = float(dur)
+        if dur_float > 0 and (word_count / dur_float) > 6:
+            is_impossible_rate = True
+    except Exception:
+        pass
+
+    is_repeating_loop = False
+    if word_count > 20:
+        words = text.lower().split()
+        if len(words) >= 16:
+            for j in range(len(words) - 8):
+                seq = " ".join(words[j:j+8])
+                if text.lower().count(seq) > 2:
+                    is_repeating_loop = True
+                    break
+
+    if word_count < 3 or is_halluc_phrase or is_impossible_rate or is_repeating_loop:
+        text = ""
+
+    cursor.execute('UPDATE videos SET transcription = ?, status = "completed" WHERE id = ?', (text, vid_id))
+    cursor.execute("DELETE FROM video_segments WHERE video_id = ?", (vid_id,))
+
+    if text:
+        cursor.execute("INSERT OR REPLACE INTO video_search (video_id, transcription) VALUES (?, ?)", (vid_id, text))
+        safe_name = "".join([c for c in filename if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+        os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
+        with open(os.path.join(TRANSCRIPTS_DIR, f"{safe_name}.txt"), "w") as f:
+            f.write(f"Source: {path}\n\n{text}")
+    else:
+        cursor.execute("DELETE FROM video_search WHERE video_id = ?", (vid_id,))
+
+    conn.commit()
+    return text
+
 
 def run_unified_process():
     init_db(DB_PATH)

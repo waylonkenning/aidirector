@@ -197,24 +197,93 @@ def create_plan_stream(req: PlanRequest):
 
 @app.post("/api/transcription/upgrade")
 def upgrade_transcription(req: PlanRequest):
-    # Ensure all tables exist before attempting to write segments
+    """Transcribe a specific list of clips (from Studio search results or individual clip button)."""
     settings = load_settings()
     db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
     director_engine.init_db(db_path)
 
-    clips_tuples = []
-    for c in req.clips:
-        clips_tuples.append((
-            c["id"], c["path"], c["filename"], c["duration"], 
-            c["transcription"], c["visual_tags"], c.get("created", "")
-        ))
-        
+    clips_tuples = [
+        (c["id"], c["path"], c["filename"], c["duration"],
+         c["transcription"], c["visual_tags"], c.get("created", ""))
+        for c in req.clips
+    ]
+
     def event_generator():
-        for chunk in ai_director.upgrade_transcription_stream(clips_tuples):
-            data = json.dumps({"chunk": chunk})
-            yield f"data: {data}\n\n"
-            
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(db_path, timeout=60.0)
+        cursor = conn.cursor()
+        total = len(clips_tuples)
+        for i, (vid_id, path, filename, dur, *_) in enumerate(clips_tuples):
+            progress = json.dumps({"chunk": f"Processing {i+1} of {total}: {filename}...\n"})
+            yield f"data: {progress}\n\n"
+            try:
+                text = director_engine.transcribe_single_video(vid_id, path, filename, dur, conn, cursor)
+                label = "B-ROLL (No speech)" if not text else f"Transcribed ({len(text.split())} words)"
+                chunk_msg = f"  Audio: {label}\n"
+                yield f"data: {json.dumps({'chunk': chunk_msg})}\n\n"
+            except Exception as e:
+                err_msg = f"  Audio Error on {filename}: {e}\n"
+                yield f"data: {json.dumps({'chunk': err_msg})}\n\n"
+        conn.close()
+        done_msg = "DONE\n"
+        yield f"data: {json.dumps({'chunk': done_msg})}\n\n"
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/api/engine/transcribe-all")
+def transcribe_all_indexed():
+    """
+    Streams transcription progress for every untranscribed video in the DB.
+    Gracefully resumes — already-transcribed videos are skipped automatically.
+    Each SSE event: {"done": N, "total": M, "filename": "...", "status": "transcribed|b-roll|error"}
+    A final event with done == total signals completion.
+    """
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    director_engine.init_db(db_path)
+
+    def event_generator():
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(db_path, timeout=60.0)
+        cursor = conn.cursor()
+
+        # Count total pending (no transcription yet, or status != completed)
+        cursor.execute("""
+            SELECT id, path, filename, duration_sec FROM videos
+            WHERE (transcription IS NULL OR transcription = '') AND duration_sec > 2.0
+            ORDER BY id ASC
+        """)
+        pending = cursor.fetchall()
+        total = len(pending)
+
+        cursor.execute("SELECT COUNT(*) FROM videos WHERE transcription IS NOT NULL AND transcription != ''")
+        already_done = cursor.fetchone()[0]
+
+        # Emit the initial total so the UI can display "0 / N"
+        yield f"data: {json.dumps({'done': already_done, 'total': already_done + total, 'filename': '', 'status': 'start'})}\n\n"
+
+        done = already_done
+        for vid_id, path, filename, dur in pending:
+            if not os.path.exists(path):
+                done += 1
+                yield f"data: {json.dumps({'done': done, 'total': already_done + total, 'filename': filename, 'status': 'missing'})}\n\n"
+                continue
+            try:
+                text = director_engine.transcribe_single_video(vid_id, path, filename, dur, conn, cursor)
+                done += 1
+                status = "transcribed" if text else "b-roll"
+                yield f"data: {json.dumps({'done': done, 'total': already_done + total, 'filename': filename, 'status': status})}\n\n"
+            except Exception as e:
+                done += 1
+                yield f"data: {json.dumps({'done': done, 'total': already_done + total, 'filename': filename, 'status': 'error', 'error': str(e)})}\n\n"
+
+        conn.close()
+        yield f"data: {json.dumps({'done': done, 'total': already_done + total, 'filename': '', 'status': 'complete'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 
 
 @app.get("/api/video")
