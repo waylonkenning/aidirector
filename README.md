@@ -16,42 +16,19 @@ This project is explicitly tailored for high-performance execution on Mac hardwa
     brew install ffmpeg
     ```
 
-## Installation
+## 🚀 Quick Start (One-Click Launch)
 
-### 1. Database & Python Backend
-First, set up your Python environment and install the required MLX engines.
+This project includes a smart startup script that automatically handles all Python virtual environments, `pip` dependencies, and `npm` Node modules for you on its first run.
 
+**To install and run the application:**
+Simply double-click the `Launch AIDirector.command` file in the project directory. 
+
+*Alternatively, you can run it from the terminal:*
 ```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+./Launch\ AIDirector.command
 ```
 
-### 2. Next.js Frontend
-In a separate terminal window, initialize the React user interface.
-
-```bash
-cd frontend_app
-npm install
-```
-
-## Running the Application
-
-You will need to run both the FastAPI backend and the Next.js frontend simultaneously.
-
-**Terminal 1 (Backend):**
-```bash
-cd backend
-source venv/bin/activate
-python3 -m uvicorn main:app --port 8000 --reload
-```
-
-**Terminal 2 (Frontend):**
-```bash
-cd frontend_app
-npm run dev
-```
+*Note: On the very first run, it may take 2-3 minutes to download all necessary dependencies. Once complete, it will automatically spin up the FastAPI background process and launch the Next.js UI.*
 
 Finally, open your browser to `http://localhost:3000`. 
 

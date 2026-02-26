@@ -12,9 +12,21 @@ lsof -ti:3000 | xargs kill -9 >/dev/null 2>&1 || true
 # Setup trap to kill background processes when script exits
 trap 'kill $(jobs -p)' EXIT
 
+# Check and install backend dependencies if missing
+echo "Checking Backend Environment..."
+cd backend
+if [ ! -d "venv" ]; then
+    echo "First time setup: Installing Python dependencies (this may take a few minutes)..."
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+else
+    source venv/bin/activate
+fi
+
 # Start FastAPI backend in the background
 echo "Launching Backend..."
-cd backend
 python3 -m uvicorn main:app --reload --port 8000 > /dev/null 2>&1 &
 BACKEND_PID=$!
 
@@ -31,6 +43,12 @@ done
 
 # Start Next.js frontend
 cd ../frontend_app
+
+if [ ! -d "node_modules" ]; then
+    echo "First time setup: Installing Frontend UI dependencies..."
+    npm install
+fi
+
 echo ""
 echo "=========================================================="
 echo "=> Frontend App is now available at: http://localhost:3000"

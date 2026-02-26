@@ -400,8 +400,20 @@ def scan_directory(req: ScanRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=404, detail=f"Directory not found: {req.path}")
     
     def run_scan():
-        director_engine.scan_folder(req.path)
-        
+        try:
+            director_engine.scan_folder(req.path)
+        except Exception as e:
+            import traceback
+            error_msg = f"FATAL ERROR IN BACKGROUND SCAN:\n{traceback.format_exc()}"
+            print(error_msg)
+            
+            settings = load_settings()
+            db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+            log_path = os.path.join(os.path.dirname(db_path), "Director_Engine.log")
+            
+            with open(log_path, "a") as f:
+                f.write(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {error_msg}\n")
+                
     background_tasks.add_task(run_scan)
     return {"status": f"Started scan of {req.path} in background"}
 
