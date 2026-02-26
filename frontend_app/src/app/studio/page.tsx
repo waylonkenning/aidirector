@@ -380,6 +380,7 @@ export default function Studio() {
     const [insights, setInsights] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [plan, setPlan] = useState<{ path: string, content: string } | null>(null);
+    const [planError, setPlanError] = useState<string | null>(null);
     const [buildStatus, setBuildStatus] = useState('');
     const [date, setDate] = useState<any>(new Date());
     const [activeVideo, setActiveVideo] = useState<{ path: string, startTime: number } | null>(null);
@@ -470,19 +471,23 @@ export default function Studio() {
     const generatePlan = async () => {
         setLoading(true);
         setFinalVideoPath('');
+        setPlanError(null);
         setPlan({ path: '', content: '' });
         await sseStream(
             'http://localhost:8000/api/plan/stream',
             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: query || 'Generated_Vlog', clips }) },
             (parsed) => {
-                if (parsed.chunk && parsed.chunk.startsWith('DONE:')) {
+                if (parsed.error) {
+                    // Backend surfaced a fatal error event
+                    setPlanError(parsed.error);
+                } else if (parsed.chunk && parsed.chunk.startsWith('DONE:')) {
                     const finalPath = parsed.chunk.replace('DONE:', '');
                     setPlan(prev => prev ? { ...prev, path: finalPath } : { path: finalPath, content: '' });
                 } else if (parsed.chunk) {
                     setPlan(prev => prev ? { ...prev, content: prev.content + parsed.chunk } : { path: '', content: parsed.chunk });
                 }
             },
-            () => alert('Error generating plan')
+            () => setPlanError('Connection lost mid-stream. Please try regenerating.')
         );
         setLoading(false);
     };
@@ -751,6 +756,22 @@ export default function Studio() {
                         </div>
                     )}
                 </>
+            )}
+
+            {planError && (
+                <div style={{ margin: '16px 0', padding: '16px 20px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <div>
+                        <div style={{ fontWeight: 600, color: '#F87171', marginBottom: 4 }}>⚠️ Story Plan Error</div>
+                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{planError}</div>
+                    </div>
+                    <button
+                        onClick={generatePlan}
+                        disabled={loading}
+                        style={{ flexShrink: 0, padding: '8px 18px', borderRadius: 8, background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.4)', color: '#F87171', fontWeight: 600, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                        🔄 Regenerate
+                    </button>
+                </div>
             )}
 
             {plan && (

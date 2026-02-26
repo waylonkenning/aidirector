@@ -97,6 +97,27 @@ def update_user_settings(req: SettingsUpdate):
     
     return {"status": "success"}
 
+@app.post("/api/database/reset")
+def reset_database():
+    settings = load_settings()
+    db_path = settings.get("dbPath", ai_director.DB_PATH)
+    
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+            # Re-initialize empty DB so system doesn't crash
+            director_engine.init_db(db_path)
+            # Also clear logs for a fresh start
+            log_path = os.path.join(os.path.dirname(db_path), "Director_Engine.log")
+            if os.path.exists(log_path):
+                with open(log_path, "w") as f:
+                    f.write("")
+            return {"status": "success", "message": "Database reset successfully."}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to reset database: {str(e)}")
+    
+    return {"status": "error", "message": "Database file not found."}
+
 @app.get("/api/models")
 def list_models():
     try:

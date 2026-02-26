@@ -487,29 +487,34 @@ def generate_story_plan_stream(clips, title):
     plan_path = os.path.join(output_dir, f"STORY_PLAN_{title}.md")
     import google.generativeai as genai
     
-    # 1. Compile the Rough Cut Report from the Database
-    rough_cut_report = f"# 🎬 Director AI: Rough Cut Analysis - {title}\n\n"
-    
-    for c in clips:
-        vid_id, path, name, dur, trans, tags, created_at = c
-        yield f"data: {{\"chunk\": \"Analyzing video {name}...\"}}\n\n"
-        segments = get_or_create_segments(vid_id, path)
-        if not segments:
-            continue
+    try:
+        # 1. Compile the Rough Cut Report from the Database
+        rough_cut_report = f"# 🎬 Director AI: Rough Cut Analysis - {title}\n\n"
+        
+        for c in clips:
+            vid_id, path, name, dur, trans, tags, created_at = c
+            yield f"data: {{\"chunk\": \"Analyzing video {name}...\"}}\n\n"
+            try:
+                segments = get_or_create_segments(vid_id, path)
+            except Exception as seg_err:
+                yield f"data: {{\"chunk\": \"Warning: Could not load segments for {name}: {seg_err}\\n\"}}\n\n"
+                continue
+            if not segments:
+                continue
 
-        rough_cut_report += f"## 🎞 File: {name}\n"
-        rough_cut_report += f"Recorded: {created_at}\n"
-        rough_cut_report += f"Path: {path}\n"
-        rough_cut_report += f"Duration: {dur:.1f}s\n"
-        for seg in segments:
-            mid_time = (seg['start'] + seg['end']) / 2
-            rough_cut_report += f"**[{seg['start']:05.2f}s - {seg['end']:05.2f}s]**\n"
-            rough_cut_report += f"- Midpoint Thumbnail Timestamp: {mid_time:.3f}\n"
-            rough_cut_report += f"- 🗣 **SAYING:** {seg['text']}\n"
-            rough_cut_report += f"- 👁 **SEEING:** {seg['visual']}\n\n"
+            rough_cut_report += f"## 🎞 File: {name}\n"
+            rough_cut_report += f"Recorded: {created_at}\n"
+            rough_cut_report += f"Path: {path}\n"
+            rough_cut_report += f"Duration: {dur:.1f}s\n"
+            for seg in segments:
+                mid_time = (seg['start'] + seg['end']) / 2
+                rough_cut_report += f"**[{seg['start']:05.2f}s - {seg['end']:05.2f}s]**\n"
+                rough_cut_report += f"- Midpoint Thumbnail Timestamp: {mid_time:.3f}\n"
+                rough_cut_report += f"- 🗣 **SAYING:** {seg['text']}\n"
+                rough_cut_report += f"- 👁 **SEEING:** {seg['visual']}\n\n"
 
-    # 2. Instruct Gemini
-    system_instruction = """
+        # 2. Instruct Gemini
+        system_instruction = """
 You are an expert documentary video editor and storyteller.
 I will provide you with a "Rough Cut Analysis" containing transcribed segments and visuals from various raw video clips.
 
@@ -545,44 +550,52 @@ You can create as many Scenes as necessary to tell the story.
 Always include the `![thumbnail]` markdown image tag exactly as formatted above, injecting the absolute Path and the exact Midpoint Timestamp provided in the report for that segment. DO NOT URL ENCODE the path yourself, just output the raw path string. My frontend will URL encode it.
     """
 
+        yield f"data: {{\"chunk\": \"Drafting story narrative via Gemini...\"}}\n\n"
+        import json
+        settings_file = os.path.join(base_dir, "backend", "settings.json")
+        model_name = "models/gemini-3.1-flash" # Default
+        if os.path.exists(settings_file):
+            try:
+                with open(settings_file, "r") as f:
+                    settings = json.load(f)
+                    if "geminiModel" in settings:
+                        model_name = settings["geminiModel"]
+            except:
+                pass
+                
+        # If the user saved just "gemini-3.1-flash" instead of "models/gemini-3.1-flash" in a previous iteration, fix that
+        if not model_name.startswith("models/"):
+            model_name = f"models/{model_name}"
 
+        # 3. Stream the generation
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            system_instruction=system_instruction
+        )
+        
+        with open(plan_path, 'w') as f:
+            response = model.generate_content(rough_cut_report, stream=True)
+            for chunk in response:
+                # Guard: some chunks (e.g. safety-filtered or stop candidates) have no text
+                if not hasattr(chunk, 'text') or chunk.text is None:
+                    continue
+                text = chunk.text
+                f.write(text)
+                # Make sure it's valid JSON for the SSE frontend parser
+                safe_text = json.dumps({"chunk": text})
+                yield f"data: {safe_text}\n\n"
+                
+        # Final done yield
+        safe_done = json.dumps({"chunk": f"DONE:{plan_path}"})
+        yield f"data: {safe_done}\n\n"
 
-    yield f"data: {{\"chunk\": \"Drafting story narrative via Gemini...\"}}\n\n"
-    import json
-    settings_file = os.path.join(base_dir, "backend", "settings.json")
-    model_name = "models/gemini-3.1-flash" # Default
-    if os.path.exists(settings_file):
-        try:
-            with open(settings_file, "r") as f:
-                settings = json.load(f)
-                if "geminiModel" in settings:
-                    model_name = settings["geminiModel"]
-        except:
-            pass
-            
-    # If the user saved just "gemini-3.1-flash" instead of "models/gemini-3.1-flash" in a previous iteration, fix that
-    if not model_name.startswith("models/"):
-        model_name = f"models/{model_name}"
-
-    # 3. Stream the generation
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=system_instruction
-    )
-    
-    with open(plan_path, 'w') as f:
-        # We don't write headers first here because Gemini generates the whole markdown structure
-        response = model.generate_content(rough_cut_report, stream=True)
-        for chunk in response:
-            text = chunk.text
-            f.write(text)
-            # Make sure it's valid JSON for the SSE frontend parser
-            safe_text = json.dumps({"chunk": text})
-            yield f"data: {safe_text}\n\n"
-            
-    # Final done yield
-    safe_done = json.dumps({"chunk": f"DONE:{plan_path}"})
-    yield f"data: {safe_done}\n\n"
+    except Exception as e:
+        import json as _json
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[generate_story_plan_stream] FATAL ERROR: {e}\n{tb}")
+        err_payload = _json.dumps({"error": str(e)})
+        yield f"data: {err_payload}\n\n"
 
 def main():
     parser = argparse.ArgumentParser(description="AI Director: Automated Video Storytelling")

@@ -190,6 +190,24 @@ export default function Settings() {
         setDuplicateGroups(prev => prev.map(g => ({ ...g, clips: g.clips.filter((c: any) => c.id !== id) })).filter(g => g.clips.length > 1));
     };
 
+    const handleDatabaseReset = async () => {
+        if (!confirm('⚠️ WARNING: This will completely wipe your video archive database and logs. All indexing and transcriptions will be lost. This cannot be undone. \n\nAre you sure you want to proceed?')) return;
+
+        try {
+            const res = await fetch('http://localhost:8000/api/database/reset', { method: 'POST' });
+            const data = await res.json();
+            if (data.status === 'success') {
+                alert('Database has been reset. The app will now reload.');
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to reset database.');
+        }
+    };
+
     return (
         <div>
             <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -414,6 +432,33 @@ export default function Settings() {
                                 )}
                             </div>
                         )}
+                    </div>
+
+                    {/* Danger Zone */}
+                    <div style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                        <label style={{ fontSize: 13, color: '#F87171', display: 'block', marginBottom: 8, fontWeight: 600 }}>Danger Zone</label>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                            Resetting the database will wipe all indexed videos, transcriptions, and engine logs. Use this for testing or to start a fresh archive.
+                        </p>
+                        <button
+                            onClick={handleDatabaseReset}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                background: 'rgba(239,68,68,0.15)',
+                                border: '1px solid rgba(239,68,68,0.3)',
+                                color: '#F87171',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.25)'}
+                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+                        >
+                            🗑️ Reset Video Database
+                        </button>
                     </div>
 
                 </div>
