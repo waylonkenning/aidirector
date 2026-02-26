@@ -7,6 +7,8 @@ __pycache__/
 *.pyo
 .DS_Store
 Video_Archive.db
+*.db-journal
+*.db-wal
 Director_Engine.log
 
 # User-generated content
