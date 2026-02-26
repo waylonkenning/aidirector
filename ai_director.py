@@ -189,6 +189,27 @@ except Exception as e:
         print("Subprocess whisper failed:", e)
         return {'text': '', 'segments': []}
 
+def trim_partial_sentence(text: str) -> str:
+    """
+    Strips any leading mid-sentence fragment from a Whisper segment.
+    Whisper cuts on silent pauses, so a segment can start with the tail end
+    of a sentence from the previous segment (e.g. "bottom cheek. Anyways...").
+    We find the first complete-sentence restart and return from there.
+    """
+    import re as _re
+    text = text.strip()
+    if not text:
+        return text
+    # If it already starts with a capital letter it's a clean start
+    if text[0].isupper():
+        return text
+    # Find the first '. ', '? ', or '! ' followed by an uppercase letter
+    match = _re.search(r'[.?!]\s+([A-Z])', text)
+    if match:
+        return text[match.start(1):]
+    # No clean sentence boundary found — return empty so this segment is skipped
+    return ''
+
 def get_or_create_segments(vid_id, path):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -427,10 +448,13 @@ def generate_story_plan_stream(clips, title):
         rough_cut_report += f"Path: {path}\n"
         rough_cut_report += f"Duration: {dur:.1f}s\n"
         for seg in segments:
+            clean_text = trim_partial_sentence(seg['text'])
+            if not clean_text:
+                continue  # entire segment was a trailing fragment — skip it
             mid_time = (seg['start'] + seg['end']) / 2
             rough_cut_report += f"**[{seg['start']:05.2f}s - {seg['end']:05.2f}s]**\n"
             rough_cut_report += f"- Midpoint Thumbnail Timestamp: {mid_time:.3f}\n"
-            rough_cut_report += f"- 🗣 **SAYING:** {seg['text']}\n"
+            rough_cut_report += f"- 🗣 **SAYING:** {clean_text}\n"
             rough_cut_report += f"- 👁 **SEEING:** {seg['visual']}\n\n"
 
     # 2. Instruct Gemini
@@ -443,6 +467,9 @@ You should select the best soundbites to form an A-Roll narrative track (V1), an
 
 CRITICAL INSTRUCTION - CHRONOLOGICAL TIMELINE:
 You MUST organize the entirely of your Cutting Plan so that the scenes unfold in STRICTLY CHRONOLOGICAL ORDER based on the "Recorded:" timestamp provided for each file in the report. Do not jump back and forth in time. Tell the story from the morning to the evening.
+
+CRITICAL INSTRUCTION - COMPLETE SENTENCES ONLY:
+Every segment you include in the plan MUST begin and end on a complete sentence. Never start a segment mid-sentence (i.e. do not start with a lowercase word or a word that clearly continues a thought from before). If a segment's text in the report starts with a sentence fragment, skip that fragment and begin only from the first complete sentence within it. If the entire segment text is a fragment with no complete sentence, omit that segment entirely.
 
 CRITICAL FORMATTING RULES:
 You must output YOUR ENTIRE RESPONSE exactly matching this Markdown format structure so my editing software can parse it and render the timeline:
