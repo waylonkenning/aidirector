@@ -6,7 +6,7 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-Video_Archive.db
+*.db
 *.db-journal
 *.db-wal
 Director_Engine.log
@@ -14,7 +14,10 @@ Director_Engine.log
 # User-generated content
 Transcripts/
 VLOG_BUILD/
+VLOG_OUTPUT/
+STORY_PLAN_*.md
 .thumbnail_cache/
 
 # Runtime config (contains user-specific paths)
 backend/settings.json
+backend/settings*.json

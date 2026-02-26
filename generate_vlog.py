@@ -256,7 +256,9 @@ def main():
         for b in build_list:
             f.write(f"file '{os.path.basename(b)}'\n")
 
-    final_output = os.path.join(BASE_DIR, f"VLOG_BUILD_{os.path.basename(plan_path).replace('.md', '')}.mp4")
+    output_dir = os.path.join(BASE_DIR, "VLOG_OUTPUT")
+    os.makedirs(output_dir, exist_ok=True)
+    final_output = os.path.join(output_dir, f"VLOG_BUILD_{os.path.basename(plan_path).replace('.md', '')}.mp4")
     concat_cmd = [
         'ffmpeg', '-f', 'concat', '-safe', '0', '-i', os.path.join(TEMP_DIR, "final_list.txt"),
         '-c', 'copy', '-y', final_output

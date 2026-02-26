@@ -344,9 +344,10 @@ def find_best_broll(keywords, broll_pool):
     return broll_pool.pop(0), "Sequential fallback."
 
 def generate_story_plan(clips, title):
-    # Save plan in the same folder as the script
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    plan_path = os.path.join(base_dir, f"STORY_PLAN_{title}.md")
+    output_dir = os.path.join(base_dir, "VLOG_OUTPUT")
+    os.makedirs(output_dir, exist_ok=True)
+    plan_path = os.path.join(output_dir, f"STORY_PLAN_{title}.md")
     aroll_pool = []
     broll_pool = []
     
@@ -406,9 +407,10 @@ def generate_story_plan(clips, title):
     return plan_path
 
 def generate_story_plan_stream(clips, title):
-    # Save plan in the same folder as the script
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    plan_path = os.path.join(base_dir, f"STORY_PLAN_{title}.md")
+    output_dir = os.path.join(base_dir, "VLOG_OUTPUT")
+    os.makedirs(output_dir, exist_ok=True)
+    plan_path = os.path.join(output_dir, f"STORY_PLAN_{title}.md")
     import google.generativeai as genai
     
     # 1. Compile the Rough Cut Report from the Database
