@@ -189,26 +189,72 @@ except Exception as e:
         print("Subprocess whisper failed:", e)
         return {'text': '', 'segments': []}
 
-def trim_partial_sentence(text: str) -> str:
+def merge_segments_by_sentence(segments: list) -> list:
     """
-    Strips any leading mid-sentence fragment from a Whisper segment.
-    Whisper cuts on silent pauses, so a segment can start with the tail end
-    of a sentence from the previous segment (e.g. "bottom cheek. Anyways...").
-    We find the first complete-sentence restart and return from there.
+    Whisper splits on silences, not sentence boundaries, so a segment can end
+    mid-sentence (e.g. "...Catherine's") with the next picking up the tail
+    ("bottom cheek. Anyways...").
+
+    This function:
+    1. Merges consecutive segments where the previous ends without sentence-
+       ending punctuation (., ?, !).
+    2. Re-splits the merged text into individual sentences.
+    3. Distributes timestamps proportionally by word count.
+
+    Returns a new list of segments with clean sentence-aligned boundaries.
     """
-    import re as _re
-    text = text.strip()
-    if not text:
-        return text
-    # If it already starts with a capital letter it's a clean start
-    if text[0].isupper():
-        return text
-    # Find the first '. ', '? ', or '! ' followed by an uppercase letter
-    match = _re.search(r'[.?!]\s+([A-Z])', text)
-    if match:
-        return text[match.start(1):]
-    # No clean sentence boundary found — return empty so this segment is skipped
-    return ''
+    if not segments:
+        return []
+
+    # --- Step 1: merge across sentence-straddling boundaries ---
+    merged = []
+    current = dict(segments[0])  # shallow copy
+    current['text'] = current['text'].strip()
+
+    for seg in segments[1:]:
+        text = seg['text'].strip()
+        if not text:
+            continue
+        prev_text = current['text']
+        # Does the previous segment end without terminal punctuation?
+        if prev_text and not re.search(r'[.?!]\s*$', prev_text):
+            # Merge: extend the current block to cover this segment too
+            current['end'] = seg['end']
+            current['text'] = prev_text + ' ' + text
+        else:
+            merged.append(current)
+            current = {'start': seg['start'], 'end': seg['end'], 'text': text,
+                       'visual': seg.get('visual', '')}
+    merged.append(current)
+
+    # --- Step 2: re-split each block at sentence boundaries ---
+    result = []
+    for block in merged:
+        # Split on sentence-ending punctuation followed by whitespace
+        sentences = re.split(r'(?<=[.?!])\s+', block['text'].strip())
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        if len(sentences) <= 1:
+            block['text'] = sentences[0] if sentences else block['text']
+            result.append(block)
+            continue
+
+        # Distribute timestamps proportionally by word count
+        total_words = sum(len(s.split()) for s in sentences)
+        duration = block['end'] - block['start']
+        t = block['start']
+        for sent in sentences:
+            words = len(sent.split())
+            seg_dur = duration * (words / total_words) if total_words else 0
+            result.append({
+                'start': round(t, 2),
+                'end': round(t + seg_dur, 2),
+                'text': sent,
+                'visual': block.get('visual', '')
+            })
+            t += seg_dur
+
+    return result
 
 def get_or_create_segments(vid_id, path):
     conn = sqlite3.connect(DB_PATH)
@@ -243,15 +289,22 @@ def get_or_create_segments(vid_id, path):
         
         for seg in valid_segments:
             idx = seg["idx"]
-            # JSON keys come back as strings
             visual = vision_results.get(str(idx), "Visual data unavailable")
-            cursor.execute("INSERT INTO video_segments (video_id, start_time, end_time, text, visual_description) VALUES (?, ?, ?, ?, ?)",
-                           (vid_id, seg["start"], seg["end"], seg["text"], visual))
             processed_segments.append({"start": seg["start"], "end": seg["end"], "text": seg["text"], "visual": visual})
+
+        # Merge across sentence-straddling boundaries before storing
+        # Visual description: use the one from the first sub-segment of each merged block
+        clean_segments = merge_segments_by_sentence(processed_segments)
+
+        for seg in clean_segments:
+            cursor.execute(
+                "INSERT INTO video_segments (video_id, start_time, end_time, text, visual_description) VALUES (?, ?, ?, ?, ?)",
+                (vid_id, seg["start"], seg["end"], seg["text"], seg.get("visual", ""))
+            )
         
         conn.commit()
         conn.close()
-        return processed_segments
+        return clean_segments
     except Exception as e:
         print(f"  Error analyzing segments: {e}")
         conn.close()
@@ -441,20 +494,18 @@ def generate_story_plan_stream(clips, title):
         vid_id, path, name, dur, trans, tags, created_at = c
         yield f"data: {{\"chunk\": \"Analyzing video {name}...\"}}\n\n"
         segments = get_or_create_segments(vid_id, path)
-        if not segments: continue
-            
+        if not segments:
+            continue
+
         rough_cut_report += f"## 🎞 File: {name}\n"
         rough_cut_report += f"Recorded: {created_at}\n"
         rough_cut_report += f"Path: {path}\n"
         rough_cut_report += f"Duration: {dur:.1f}s\n"
         for seg in segments:
-            clean_text = trim_partial_sentence(seg['text'])
-            if not clean_text:
-                continue  # entire segment was a trailing fragment — skip it
             mid_time = (seg['start'] + seg['end']) / 2
             rough_cut_report += f"**[{seg['start']:05.2f}s - {seg['end']:05.2f}s]**\n"
             rough_cut_report += f"- Midpoint Thumbnail Timestamp: {mid_time:.3f}\n"
-            rough_cut_report += f"- 🗣 **SAYING:** {clean_text}\n"
+            rough_cut_report += f"- 🗣 **SAYING:** {seg['text']}\n"
             rough_cut_report += f"- 👁 **SEEING:** {seg['visual']}\n\n"
 
     # 2. Instruct Gemini
