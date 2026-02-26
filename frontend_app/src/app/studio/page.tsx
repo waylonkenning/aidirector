@@ -531,10 +531,19 @@ export default function Studio() {
             'http://localhost:8000/api/build',
             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_path: plan.path }) },
             (parsed) => {
-                if (parsed.done) { setBuildStatus('Build Complete!'); setFinalVideoPath(parsed.done); }
-                else if (parsed.status) setBuildLogs(prev => [...prev, parsed.status]);
+                if (parsed.done) {
+                    setBuildStatus('Build Complete!');
+                    setFinalVideoPath(parsed.done);
+                } else if (parsed.error) {
+                    // FFmpeg exited with a non-zero code — re-enable the button
+                    setBuildStatus('');
+                    setBuildLogs(prev => [...prev, `❌ Build failed: ${parsed.error}`]);
+                } else if (parsed.status) {
+                    setBuildLogs(prev => [...prev, parsed.status]);
+                }
             },
-            () => setBuildStatus('Error starting build')
+            // Connection-level error — also re-enable the button
+            () => { setBuildStatus(''); setBuildLogs(prev => [...prev, '❌ Lost connection to build server.']); }
         );
     };
 

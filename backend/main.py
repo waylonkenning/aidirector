@@ -547,17 +547,25 @@ def build_video(req: BuildRequest):
             bufsize=1
         )
         
+        success_sent = False
         for line in iter(process.stdout.readline, ''):
             if line:
                 # Check for the final success token
                 if line.startswith("SUCCESS: Created"):
                     final_path = line.replace("SUCCESS: Created", "").strip()
                     yield f"data: {json.dumps({'done': final_path})}\n\n"
+                    success_sent = True
                 else:
                     yield f"data: {json.dumps({'status': line.strip()})}\n\n"
                     
         process.stdout.close()
         process.wait()
+        
+        # If the process failed and we never emitted a success, send an error
+        # event so the frontend can re-enable the Build button.
+        if process.returncode != 0 and not success_sent:
+            err_msg = f"FFmpeg exited with code {process.returncode}"
+            yield f"data: {json.dumps({'error': err_msg})}\n\n"
 
     return StreamingResponse(generate_build_logs(), media_type="text/event-stream")
 
