@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import re
+import tempfile
 import mlx_whisper
 import sqlite3
 from datetime import datetime
@@ -9,8 +10,18 @@ from datetime import datetime
 # Configuration
 WHISPER_MODEL = "mlx-community/whisper-small-mlx"
 VISION_MODEL = "mlx-community/nanoLLaVA-1.5-8bit"
-DB_PATH = "/Volumes/X9 Pro/Video_Archive.db"
-EDITS_DIR = "/Volumes/X9 Pro/Edits"
+
+def _load_config():
+    settings_path = os.path.join(os.path.dirname(__file__), "backend", "settings.json")
+    if os.path.exists(settings_path):
+        with open(settings_path, "r") as f:
+            return json.load(f)
+    return {}
+
+config = _load_config()
+DB_PATH = config.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+EDITS_DIR = os.path.join(os.path.dirname(DB_PATH), "Edits")
+os.makedirs(EDITS_DIR, exist_ok=True)
 
 def get_precise_segments(video_path):
     print(f"\n[Audio] Transcribing: {os.path.basename(video_path)}")
@@ -24,7 +35,7 @@ def get_precise_segments(video_path):
 def get_vision_for_segment(video_path, start_time, end_time, segment_id):
     clean_id = re.sub(r'[^a-zA-Z0-9]', '_', str(segment_id))
     mid_point = (start_time + end_time) / 2
-    frame_path = f"/tmp/edit_segment_{clean_id}.jpg"
+    frame_path = os.path.join(tempfile.gettempdir(), f"edit_segment_{clean_id}.jpg")
     timestamp_str = f"{mid_point:.3f}"
     
     cmd = ['ffmpeg', '-ss', timestamp_str, '-i', video_path, '-vframes', '1', '-q:v', '2', '-update', '1', frame_path, '-y', '-loglevel', 'error']

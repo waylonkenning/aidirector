@@ -8,3 +8,11 @@ __pycache__/
 .DS_Store
 Video_Archive.db
 Director_Engine.log
+
+# User-generated content
+Transcripts/
+VLOG_BUILD/
+.thumbnail_cache/
+
+# Runtime config (contains user-specific paths)
+backend/settings.json

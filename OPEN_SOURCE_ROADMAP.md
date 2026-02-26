@@ -49,4 +49,4 @@ You successfully solved the MLX `EXC_BAD_ACCESS` segfaults by isolating transcri
     5. Set Gemini API Key in UI Settings.
 
 ## 6. Security Warning
-- [ ] Examine `ai_director.py` and `main.py` for any remaining hardcoded credentials, personal names, or absolute paths containing your username (`/Users/waylonkenning/...`) before pushing to a public GitHub repository.
+- [x] Examine `ai_director.py` and `main.py` for any remaining hardcoded credentials, personal names, or absolute paths containing your username before pushing to a public GitHub repository.
