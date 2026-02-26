@@ -1,0 +1,9 @@
+node_modules/
+.pnpm-store/
+.env
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+Video_Archive.db
