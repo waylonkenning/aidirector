@@ -197,6 +197,11 @@ def create_plan_stream(req: PlanRequest):
 
 @app.post("/api/transcription/upgrade")
 def upgrade_transcription(req: PlanRequest):
+    # Ensure all tables exist before attempting to write segments
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    director_engine.init_db(db_path)
+
     clips_tuples = []
     for c in req.clips:
         clips_tuples.append((
