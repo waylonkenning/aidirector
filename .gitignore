@@ -7,3 +7,4 @@ __pycache__/
 *.pyo
 .DS_Store
 Video_Archive.db
+Director_Engine.log

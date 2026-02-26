@@ -408,7 +408,7 @@ def scan_directory(req: ScanRequest, background_tasks: BackgroundTasks):
 @app.get("/api/engine/logs")
 def get_engine_logs(limit: int = 15):
     """Return the tail of the Director Engine log file."""
-    log_path = os.path.expanduser("~/Desktop/Director_Engine.log")
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Director_Engine.log")
     if not os.path.exists(log_path):
         return {"logs": ["Engine log file not found. Standby..."]}
         
