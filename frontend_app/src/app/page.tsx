@@ -410,6 +410,11 @@ export default function Settings() {
                                                 </div>
                                                 {group.clips.map((clip: any, i: number) => (
                                                     <div key={clip.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderTop: i > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                                        <img
+                                                            src={`http://localhost:8000/api/thumbnail?path=${encodeURIComponent(clip.path)}&t=1`}
+                                                            style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4, flexShrink: 0, background: '#000' }}
+                                                            alt="thumbnail"
+                                                        />
                                                         <span style={{ flexShrink: 0, fontSize: 14 }}>{clip.suggested_keep ? '✅' : '🔴'}</span>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
                                                             <div style={{ fontWeight: clip.suggested_keep ? 600 : 400, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{clip.filename}</div>

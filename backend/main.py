@@ -195,7 +195,7 @@ def get_duplicates():
 
     # Find all created timestamps that appear on more than one video
     cursor.execute("""
-        SELECT id, path, filename, ROUND(duration_sec, 1) as dur_r, created,
+        SELECT id, path, filename, ROUND(duration_sec, 0) as dur_r, created,
                SUBSTR(transcription, 1, 100) as snippet, status
         FROM videos
         WHERE created IS NOT NULL AND created != ''

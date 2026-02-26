@@ -239,11 +239,12 @@ function NLEViewer({ content, totalClips, onClipClick }: { content: string, tota
                 currentMode = 'B';
             } else if (currentMode === 'A' && line.startsWith('    *   Segment')) {
                 const timeMatch = line.match(/\[([\d\.]+ - [\d\.]+)\]/);
-                const textMatch = line.match(/\((.*?)\)/);
+                const textMatch = line.match(/\]\s+(.+?)\s*!\[thumbnail\]/);
+                const rawText = textMatch ? textMatch[1].replace(/^\(|\)$/, '').trim() : '';
                 const imgMatch = line.match(/!\[.*?\]\((.+)\)/);
                 if (currentScene) {
                     const img = imgMatch ? imgMatch[1] : '';
-                    currentScene.blocks.push({ time: timeMatch ? timeMatch[1] : '', text: textMatch ? textMatch[1] : '', img, path: extractPath(img) });
+                    currentScene.blocks.push({ time: timeMatch ? timeMatch[1] : '', text: rawText, img, path: extractPath(img) });
                 }
             } else if (currentMode === 'B' && line.startsWith('    *   `')) {
                 const fileMatch = line.match(/`(.*?)`/);
@@ -392,7 +393,7 @@ export default function Studio() {
     const [upgradeLogs, setUpgradeLogs] = useState<string[]>([]);
 
     // Duplicate Detection State (client-side filter on current results)
-    const [hideDuplicates, setHideDuplicates] = useState(false);
+    const [hideDuplicates, setHideDuplicates] = useState(true);
 
     // Opt 18: Shared SSE hook — replaces 4 duplicated read loops.
     const sseStream = useSSEStream();
@@ -400,14 +401,14 @@ export default function Studio() {
     // Opt 14: Memoize paginated clips slice — only recomputes when clips/page/hideDuplicates changes.
     const dedupedClips = useMemo(() => {
         if (!hideDuplicates) return clips;
-        // Keep one video per (created, rounded duration) group — prefer camera originals
-        const seen = new Map<string, boolean>();
+        // Keep only the first clip per (created, rounded duration) group.
+        // Same timestamp + same length = same clip regardless of filename.
+        const seen = new Set<string>();
         return clips.filter((c: any) => {
-            const key = `${c.created}|${Math.round((parseFloat(c.duration) || 0) * 10) / 10}`;
-            const name: string = c.filename || '';
-            const isCopy = name.includes('CFNetworkDownload') || name.startsWith('Snapchat-') || name.startsWith('AUTO_AWESOME');
-            if (!seen.has(key)) { seen.set(key, true); return true; }
-            return !isCopy; // if multiple, drop known-copy filenames
+            const key = `${c.created}|${Math.round(parseFloat(c.duration) || 0)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
         });
     }, [clips, hideDuplicates]);
 
@@ -654,29 +655,8 @@ export default function Studio() {
                 </div>
             </div>
 
-            {/* ── Hide Duplicates Toggle (filters current search results) ── */}
-            {clips.length > 0 && !plan && (
-                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button
-                        onClick={() => setHideDuplicates(h => !h)}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                            borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                            background: hideDuplicates ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-                            border: hideDuplicates ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                            color: hideDuplicates ? '#F87171' : 'var(--text-secondary)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        {hideDuplicates ? '🔴 Hiding Duplicates' : '🔴 Hide Duplicates'}
-                    </button>
-                    {hideDuplicates && clips.length !== dedupedClips.length && (
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            {clips.length - dedupedClips.length} duplicate{clips.length - dedupedClips.length > 1 ? 's' : ''} hidden from results
-                        </span>
-                    )}
-                </div>
-            )}
+
+
 
 
             {clips.length > 0 && !plan && (
