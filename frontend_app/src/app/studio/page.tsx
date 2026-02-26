@@ -240,7 +240,7 @@ function NLEViewer({ content, totalClips, onClipClick }: { content: string, tota
             } else if (currentMode === 'A' && line.startsWith('    *   Segment')) {
                 const timeMatch = line.match(/\[([\d\.]+ - [\d\.]+)\]/);
                 const textMatch = line.match(/\((.*?)\)/);
-                const imgMatch = line.match(/!\[.*?\]\((.*?)\)/);
+                const imgMatch = line.match(/!\[.*?\]\((.+)\)/);
                 if (currentScene) {
                     const img = imgMatch ? imgMatch[1] : '';
                     currentScene.blocks.push({ time: timeMatch ? timeMatch[1] : '', text: textMatch ? textMatch[1] : '', img, path: extractPath(img) });
@@ -249,7 +249,7 @@ function NLEViewer({ content, totalClips, onClipClick }: { content: string, tota
                 const fileMatch = line.match(/`(.*?)`/);
                 const trimMatch = line.match(/Trim:\s*\[(.*?)\]/);
                 const overlayMatch = line.match(/Overlay @\s*([\d\.:]+)/);
-                const imgMatch = line.match(/!\[.*?\]\((.*?)\)/);
+                const imgMatch = line.match(/!\[.*?\]\((.+)\)/);
                 let rationale = '';
                 if (i + 1 < lines.length && lines[i + 1].startsWith('        *   **RATIONALE:**')) {
                     rationale = lines[i + 1].replace('        *   **RATIONALE:**', '').trim();
