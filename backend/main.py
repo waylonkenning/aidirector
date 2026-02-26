@@ -159,6 +159,88 @@ def search_clips(req: QueryRequest):
         })
     return {"clips": result}
 
+@app.get("/api/duplicates")
+def get_duplicates():
+    """
+    Returns groups of likely-duplicate videos.
+    Duplicates are identified by identical EXIF `created` timestamp AND
+    duration within 1 second of each other (handles re-encode size drift).
+    """
+    import sqlite3 as _sqlite3
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    conn = _sqlite3.connect(db_path, timeout=30)
+    cursor = conn.cursor()
+
+    # Find all created timestamps that appear on more than one video
+    cursor.execute("""
+        SELECT id, path, filename, ROUND(duration_sec, 1) as dur_r, created,
+               SUBSTR(transcription, 1, 100) as snippet, status
+        FROM videos
+        WHERE created IS NOT NULL AND created != ''
+        ORDER BY created ASC, dur_r ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    # Group by (created, rounded_duration) — exact timestamp + ~same length = same clip
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for vid_id, path, filename, dur_r, created, snippet, status in rows:
+        key = f"{created}|{dur_r}"
+        groups[key].append({
+            "id": vid_id,
+            "path": path,
+            "filename": filename,
+            "duration": dur_r,
+            "created": created,
+            "snippet": snippet or "",
+            "status": status,
+        })
+
+    # Only return groups with 2+ entries (actual duplicates)
+    duplicate_groups = []
+    for key, members in groups.items():
+        if len(members) < 2:
+            continue
+        # Heuristic: prefer original camera filenames over downloads.
+        # CFNetworkDownload_, Snapchat-, IMG_, VID_ are lower confidence originals.
+        def keeper_score(m: dict) -> int:
+            name = m["filename"]
+            if any(p in name for p in ["CFNetworkDownload", "Snapchat-", "AUTO_AWESOME"]):
+                return 0   # almost certainly a copy
+            if name.startswith(("MAH", "MVI_", "C00", "P100", "MOV_")):
+                return 2   # camera original
+            return 1       # neutral
+        members_sorted = sorted(members, key=keeper_score, reverse=True)
+        members_sorted[0]["suggested_keep"] = True
+        duplicate_groups.append({"key": key, "clips": members_sorted})
+
+    return {"groups": duplicate_groups, "total_groups": len(duplicate_groups)}
+
+
+class DeleteRequest(BaseModel):
+    id: int
+
+@app.post("/api/video/delete")
+def delete_video_from_index(req: DeleteRequest):
+    """
+    Removes a video from the AI Director index (DB only).
+    Does NOT delete the original file from disk.
+    """
+    import sqlite3 as _sqlite3
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    conn = _sqlite3.connect(db_path, timeout=30)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM video_segments WHERE video_id = ?", (req.id,))
+    cursor.execute("DELETE FROM video_search WHERE video_id = ?", (req.id,))
+    cursor.execute("DELETE FROM videos WHERE id = ?", (req.id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted", "id": req.id}
+
+
 @app.post("/api/plan")
 def create_plan(req: PlanRequest):
     # We need clips in the tuple format expected by ai_director
