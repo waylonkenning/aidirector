@@ -48,6 +48,26 @@ def log(msg):
     with open(LOG_PATH, "a") as f:
         f.write(formatted_msg)
 
+def init_db(db_path):
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=60.0)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS videos(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT UNIQUE,
+            filename TEXT,
+            duration_sec REAL,
+            status TEXT,
+            visual_tags TEXT,
+            transcription TEXT,
+            created TEXT
+        )
+    ''')
+    cursor.execute('CREATE VIRTUAL TABLE IF NOT EXISTS video_search USING fts5(video_id, transcription)')
+    conn.commit()
+    conn.close()
+
 def _isolate_whisper(path):
     """Run mlx_whisper in a child process to avoid EXC_BAD_ACCESS crashes under Uvicorn."""
     code = """
@@ -71,6 +91,7 @@ except Exception:
     return {'text': '', 'segments': []}
 
 def run_unified_process():
+    init_db(DB_PATH)
     conn = sqlite3.connect(DB_PATH, timeout=60.0)
     cursor = conn.cursor()
     
@@ -171,6 +192,7 @@ def run_unified_process():
     conn.close()
 
 def scan_folder(folder_path):
+    init_db(DB_PATH)
     if not os.path.exists(folder_path):
         print(f"Error: Folder '{folder_path}' does not exist.")
         return
