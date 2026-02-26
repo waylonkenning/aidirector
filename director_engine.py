@@ -65,6 +65,16 @@ def init_db(db_path):
         )
     ''')
     cursor.execute('CREATE VIRTUAL TABLE IF NOT EXISTS video_search USING fts5(video_id, transcription)')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS video_segments(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id INTEGER,
+            start_time REAL,
+            end_time REAL,
+            text TEXT,
+            visual_description TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
