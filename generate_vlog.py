@@ -158,10 +158,14 @@ def parse_plan(plan_path):
     
     # Helper to extract absolute path from the thumbnail markdown
     def extract_path(line):
-        match = re.search(r'!\[.*?\]\((.*?)\)', line)
+        # Use a greedy match for the URL so that filenames with parentheses
+        # (e.g. "1080p(4).mov") don't truncate the path at the first ")".
+        # The markdown format is: ![alt](url) — we want everything inside the
+        # LAST pair of parens, so we match up to the final closing paren.
+        match = re.search(r'!\[.*?\]\((.+)\)', line)
         if match:
             url = match.group(1)
-            # Find the path= parameter
+            # Find the path= parameter (stop at &)
             path_match = re.search(r'path=([^&]+)', url)
             if path_match:
                 import urllib.parse
