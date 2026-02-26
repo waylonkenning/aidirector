@@ -16,6 +16,7 @@ Transcripts/
 VLOG_BUILD/
 VLOG_OUTPUT/
 STORY_PLAN_*.md
+*.mp4
 .thumbnail_cache/
 
 # Runtime config (contains user-specific paths)
