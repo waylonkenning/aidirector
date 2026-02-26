@@ -408,10 +408,16 @@ def scan_directory(req: ScanRequest, background_tasks: BackgroundTasks):
 @app.get("/api/engine/logs")
 def get_engine_logs(limit: int = 15):
     """Return the tail of the Director Engine log file."""
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Director_Engine.log")
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    log_path = os.path.join(os.path.dirname(db_path), "Director_Engine.log")
+    
+    # Initialize log file on first run
     if not os.path.exists(log_path):
-        return {"logs": ["Engine log file not found. Standby..."]}
-        
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "w") as f:
+            f.write("Initializing Director Engine...\n")
+            
     try:
         with open(log_path, "r") as f:
             lines = f.readlines()

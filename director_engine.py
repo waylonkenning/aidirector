@@ -21,7 +21,7 @@ os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
 
 VISION_MODEL = "mlx-community/nanoLLaVA-1.5-8bit"
 WHISPER_MODEL = "mlx-community/whisper-small-mlx"
-LOG_PATH = os.path.join(os.path.dirname(__file__), "Director_Engine.log")
+LOG_PATH = os.path.join(os.path.dirname(DB_PATH), "Director_Engine.log")
 LOG_MAX_LINES = 1000
 _log_call_count = 0
 
