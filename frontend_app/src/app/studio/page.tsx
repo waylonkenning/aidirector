@@ -447,6 +447,8 @@ export default function Studio() {
             setCurrentPage(1);
             setPlan(null);
             setBuildStatus('');
+            setBuildLogs([]);
+            setFinalVideoPath('');
         } catch (e) {
             alert('Error searching clips');
         }
@@ -472,6 +474,8 @@ export default function Studio() {
     const generatePlan = async () => {
         setLoading(true);
         setFinalVideoPath('');
+        setBuildStatus('');
+        setBuildLogs([]);
         setPlanError(null);
         setPlan({ path: '', content: '' });
         await sseStream(
