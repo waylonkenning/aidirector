@@ -395,6 +395,9 @@ export default function Studio() {
     // Duplicate Detection State (client-side filter on current results)
     const [hideDuplicates, setHideDuplicates] = useState(true);
 
+    // Clip Selection State — tracks which clips are included in the story plan
+    const [selectedClipIds, setSelectedClipIds] = useState<Set<number>>(new Set());
+
     // Opt 18: Shared SSE hook — replaces 4 duplicated read loops.
     const sseStream = useSSEStream();
 
@@ -449,6 +452,8 @@ export default function Studio() {
             setBuildStatus('');
             setBuildLogs([]);
             setFinalVideoPath('');
+            // Default: all deduped clips selected
+            setSelectedClipIds(new Set((data.clips || []).map((c: any) => c.id)));
         } catch (e) {
             alert('Error searching clips');
         }
@@ -478,9 +483,10 @@ export default function Studio() {
         setBuildLogs([]);
         setPlanError(null);
         setPlan({ path: '', content: '' });
+        const clipsForPlan = clips.filter((c: any) => selectedClipIds.has(c.id));
         await sseStream(
             'http://localhost:8000/api/plan/stream',
-            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: query || 'Generated_Vlog', clips }) },
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: query || 'Generated_Vlog', clips: clipsForPlan }) },
             (parsed) => {
                 if (parsed.error) {
                     // Backend surfaced a fatal error event
@@ -666,13 +672,26 @@ export default function Studio() {
             {clips.length > 0 && !plan && (
                 <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                        <h2 style={{ margin: 0 }}>Found {clips.length} Clips</h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <h2 style={{ margin: 0 }}>Found {clips.length} Clips</h2>
+                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                                {selectedClipIds.size} selected
+                            </span>
+                            <button
+                                onClick={() => setSelectedClipIds(new Set(dedupedClips.map((c: any) => c.id)))}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+                            >All</button>
+                            <button
+                                onClick={() => setSelectedClipIds(new Set())}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+                            >None</button>
+                        </div>
                         <div style={{ display: 'flex', gap: 12 }}>
                             <button className="btn-secondary" onClick={upgradeClips} disabled={loading || isUpgrading} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span>🎙️</span> Upgrade All Transcription
                             </button>
-                            <button className="btn-primary" onClick={generatePlan} disabled={loading || isUpgrading} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🎬</span> Generate Story Plan
+                            <button className="btn-primary" onClick={generatePlan} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🎬</span> Generate Story Plan {selectedClipIds.size > 0 && selectedClipIds.size < dedupedClips.length ? `(${selectedClipIds.size} clips)` : ''}
                             </button>
                         </div>
                     </div>
@@ -696,9 +715,23 @@ export default function Studio() {
                             const thumbSrc = `http://localhost:8000/api/thumbnail?path=${encodeURIComponent(c.path)}&t=2`;
 
                             return (
-                                <div key={c.id} className={`clip-card ${role}`} style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div
+                                    key={c.id}
+                                    className={`clip-card ${role}`}
+                                    style={{ display: 'flex', flexDirection: 'column', opacity: selectedClipIds.has(c.id) ? 1 : 0.45, transition: 'opacity 0.2s' }}
+                                >
                                     <div className="clip-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--accent-primary)', marginBottom: 12, gap: 8 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedClipIds.has(c.id)}
+                                                onChange={() => setSelectedClipIds(prev => {
+                                                    const next = new Set(prev);
+                                                    next.has(c.id) ? next.delete(c.id) : next.add(c.id);
+                                                    return next;
+                                                })}
+                                                style={{ flexShrink: 0, width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
+                                            />
                                             <span style={{ flexShrink: 0 }}>▶️</span>
                                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.filename}</span>
                                         </div>
