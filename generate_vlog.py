@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import re
+import argparse
 
 # This dictionary should ideally be loaded from the database, but we'll use it as a fallback
 # for the Shanghai demo, or let the script find paths.
@@ -45,6 +46,19 @@ def get_clip_duration(path: str) -> float:
         return float(result.stdout.strip())
     except Exception:
         return float('inf')  # Unknown — don't clamp
+
+
+def generate_black_clip(output_path: str, duration: float = 0.5):
+    """Generate a short black silent clip for dip-to-black transitions."""
+    cmd = [
+        'ffmpeg',
+        '-f', 'lavfi', '-i', f'color=black:s=1280x720:r=30000/1001',
+        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
+        '-t', str(duration),
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+        '-c:a', 'aac', '-ar', '48000', '-ac', '2', '-y', output_path
+    ]
+    run_ffmpeg(cmd)
 
 
 def process_scene(scene):
@@ -227,12 +241,18 @@ def parse_plan(plan_path):
     return scenes
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 generate_vlog.py <STORY_PLAN.md>")
-        sys.exit(1)
-        
-    plan_path = sys.argv[1]
-    
+    parser = argparse.ArgumentParser(description='Build a vlog from a story plan.')
+    parser.add_argument('plan_path', help='Path to the story plan markdown file')
+    parser.add_argument('--dip-transitions', nargs='*', type=int, default=[], metavar='N',
+                        help='Scene gap indices (0-based) that get a dip to black (e.g. 0 2)')
+    parser.add_argument('--fade-to-black', action='store_true',
+                        help='Apply a 1-second fade to black at the end of the final video')
+    args = parser.parse_args()
+
+    plan_path = args.plan_path
+    dip_set = set(args.dip_transitions or [])
+    fade_to_black = args.fade_to_black
+
     # Clear the temporary build directory before starting
     print(f"Cleaning temporary build directory: {TEMP_DIR}")
     for filename in os.listdir(TEMP_DIR):
@@ -242,33 +262,59 @@ def main():
                 os.unlink(file_path)
         except Exception as e:
             print(f'Failed to delete {file_path}. Reason: {e}')
-            
+
     scenes = parse_plan(plan_path)
-    
+
     build_list = []
     for i, scene in enumerate(scenes):
         final_scene_file = process_scene(scene)
         if final_scene_file:
             build_list.append(final_scene_file)
-            
+
     if not build_list:
         print("\nError: No valid scenes could be built (likely due to missing A-Roll data).", flush=True)
         sys.exit(1)
-            
-    # FINAL CONCAT
-    with open(os.path.join(TEMP_DIR, "final_list.txt"), "w") as f:
-        for b in build_list:
+
+    # Generate black transition clip once if needed
+    black_clip = None
+    if dip_set:
+        black_clip = os.path.join(TEMP_DIR, "black_transition.mp4")
+        print("Generating black transition clip...", flush=True)
+        generate_black_clip(black_clip, duration=0.5)
+
+    # FINAL CONCAT — interleave black clips at selected scene boundaries
+    final_list_path = os.path.join(TEMP_DIR, "final_list.txt")
+    with open(final_list_path, "w") as f:
+        for i, b in enumerate(build_list):
             f.write(f"file '{os.path.basename(b)}'\n")
+            if i < len(build_list) - 1 and i in dip_set and black_clip:
+                f.write(f"file '{os.path.basename(black_clip)}'\n")
 
     output_dir = os.path.join(BASE_DIR, "VLOG_OUTPUT")
     os.makedirs(output_dir, exist_ok=True)
     final_output = os.path.join(output_dir, f"VLOG_BUILD_{os.path.basename(plan_path).replace('.md', '')}.mp4")
     concat_cmd = [
-        'ffmpeg', '-f', 'concat', '-safe', '0', '-i', os.path.join(TEMP_DIR, "final_list.txt"),
+        'ffmpeg', '-f', 'concat', '-safe', '0', '-i', final_list_path,
         '-c', 'copy', '-y', final_output
     ]
     run_ffmpeg(concat_cmd)
-    
+
+    # FADE TO BLACK — re-encode final output with 1s fade at the end
+    if fade_to_black:
+        duration = get_clip_duration(final_output)
+        fade_start = max(0.0, duration - 1.0)
+        faded_output = final_output.replace('.mp4', '_fading.mp4')
+        print(f"Applying fade to black (start={fade_start:.2f}s)...", flush=True)
+        fade_cmd = [
+            'ffmpeg', '-i', final_output,
+            '-vf', f'fade=t=out:st={fade_start:.3f}:d=1',
+            '-af', f'afade=t=out:st={fade_start:.3f}:d=1',
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+            '-c:a', 'aac', '-ar', '48000', '-ac', '2', '-y', faded_output
+        ]
+        run_ffmpeg(fade_cmd)
+        os.replace(faded_output, final_output)
+
     # Cleanup (Disabled for debugging)
     # import shutil
     # shutil.rmtree(TEMP_DIR, ignore_errors=True)

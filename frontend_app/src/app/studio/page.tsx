@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
@@ -209,7 +209,13 @@ function VideoBuildLoader({ logs, status }: { logs: string[], status: string }) 
 }
 
 // Opt 13: NLEViewer with memoised parsing — only re-runs when `content` changes, not on every SSE chunk.
-function NLEViewer({ content, totalClips, onClipClick }: { content: string, totalClips: number, onClipClick?: (path: string, startTime: number) => void }) {
+function NLEViewer({ content, totalClips, onClipClick, dipTransitions, onToggleDip }: {
+    content: string,
+    totalClips: number,
+    onClipClick?: (path: string, startTime: number) => void,
+    dipTransitions?: Set<number>,
+    onToggleDip?: (idx: number) => void,
+}) {
     const scenes = useMemo(() => {
         const lines = content.split('\n');
         const result: any[] = [];
@@ -268,67 +274,89 @@ function NLEViewer({ content, totalClips, onClipClick }: { content: string, tota
     return (
         <div className="nle-viewer">
             {scenes.map((scene: any, idx: number) => (
-                <div key={idx} style={{ marginBottom: 40, background: '#111827', padding: 20, borderRadius: 12, border: '1px solid #1f2937' }}>
-                    <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 20, fontSize: 16 }}>SCENE {idx + 1}: {scene.title}</h3>
-                    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {/* V2 - B-Roll Track */}
-                        <div className="track v2-track" style={{ display: 'flex', gap: 12, minHeight: 90, padding: 8, background: 'rgba(59, 130, 246, 0.05)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.1)' }}>
-                            <div style={{ width: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', fontWeight: 'bold', fontSize: 12, borderRight: '1px solid rgba(59, 130, 246, 0.2)' }}>V2</div>
-                            <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
-                                {scene.broll.map((b: any, bIdx: number) => {
-                                    const bStart = b.trim ? parseFloat(b.trim.split('-')[0].replace(':', '.')) : 0;
-                                    return (
-                                        <div
-                                            key={bIdx}
-                                            onClick={() => b.path && onClipClick && onClipClick(b.path, bStart)}
-                                            style={{ display: 'flex', gap: 8, background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: 6, padding: 6, width: 220, flexShrink: 0, cursor: b.path ? 'pointer' : 'default', transition: 'all 0.2s' }}
-                                            onMouseEnter={(e) => b.path && (e.currentTarget.style.transform = 'translateY(-2px)')}
-                                            onMouseLeave={(e) => b.path && (e.currentTarget.style.transform = 'translateY(0)')}
-                                        >
-                                            {b.img && <img src={b.img} style={{ width: 68, height: 46, objectFit: 'cover', borderRadius: 4 }} alt="B-Roll Thumbnail" />}
-                                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', justifyContent: 'center' }}>
-                                                <span style={{ fontSize: 12, fontWeight: 'bold', color: '#93c5fd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.file}</span>
-                                                <span style={{ fontSize: 11, color: '#bfdbfe', marginTop: 2 }}>
-                                                    @ {b.overlay}s {b.trim && `| Trim: [${b.trim}]`}
-                                                </span>
+                <React.Fragment key={idx}>
+                    <div style={{ marginBottom: 0, background: '#111827', padding: 20, borderRadius: 12, border: '1px solid #1f2937' }}>
+                        <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 20, fontSize: 16 }}>SCENE {idx + 1}: {scene.title}</h3>
+                        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {/* V2 - B-Roll Track */}
+                            <div className="track v2-track" style={{ display: 'flex', gap: 12, minHeight: 90, padding: 8, background: 'rgba(59, 130, 246, 0.05)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                                <div style={{ width: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', fontWeight: 'bold', fontSize: 12, borderRight: '1px solid rgba(59, 130, 246, 0.2)' }}>V2</div>
+                                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+                                    {scene.broll.map((b: any, bIdx: number) => {
+                                        const bStart = b.trim ? parseFloat(b.trim.split('-')[0].replace(':', '.')) : 0;
+                                        return (
+                                            <div
+                                                key={bIdx}
+                                                onClick={() => b.path && onClipClick && onClipClick(b.path, bStart)}
+                                                style={{ display: 'flex', gap: 8, background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: 6, padding: 6, width: 220, flexShrink: 0, cursor: b.path ? 'pointer' : 'default', transition: 'all 0.2s' }}
+                                                onMouseEnter={(e) => b.path && (e.currentTarget.style.transform = 'translateY(-2px)')}
+                                                onMouseLeave={(e) => b.path && (e.currentTarget.style.transform = 'translateY(0)')}
+                                            >
+                                                {b.img && <img src={b.img} style={{ width: 68, height: 46, objectFit: 'cover', borderRadius: 4 }} alt="B-Roll Thumbnail" />}
+                                                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', justifyContent: 'center' }}>
+                                                    <span style={{ fontSize: 12, fontWeight: 'bold', color: '#93c5fd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.file}</span>
+                                                    <span style={{ fontSize: 11, color: '#bfdbfe', marginTop: 2 }}>
+                                                        @ {b.overlay}s {b.trim && `| Trim: [${b.trim}]`}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                                {scene.broll.length === 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', paddingLeft: 8, display: 'flex', alignItems: 'center' }}>No overlays</div>}
+                                        );
+                                    })}
+                                    {scene.broll.length === 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', paddingLeft: 8, display: 'flex', alignItems: 'center' }}>No overlays</div>}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* V1 - A-Roll Track */}
-                        <div className="track v1-track" style={{ display: 'flex', gap: 12, minHeight: 120, padding: 8, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                            <div style={{ width: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontWeight: 'bold', fontSize: 12, borderRight: '1px solid rgba(16, 185, 129, 0.2)' }}>V1</div>
-                            <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
-                                {scene.blocks.map((b: any, bIdx: number) => {
-                                    const tStart = b.time ? parseFloat(b.time.split(' - ')[0]) : 0;
-                                    return (
-                                        <div
-                                            key={bIdx}
-                                            onClick={() => b.path && onClipClick && onClipClick(b.path, tStart)}
-                                            style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 6, padding: 6, width: 220, flexShrink: 0, cursor: b.path ? 'pointer' : 'default', transition: 'all 0.2s' }}
-                                            onMouseEnter={(e) => b.path && (e.currentTarget.style.transform = 'translateY(-2px)')}
-                                            onMouseLeave={(e) => b.path && (e.currentTarget.style.transform = 'translateY(0)')}
-                                        >
-                                            <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: 4, overflow: 'hidden' }}>
-                                                {b.img && <img src={b.img} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="A-Roll Thumbnail" />}
-                                                <div style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.7)', padding: '2px 4px', borderRadius: 4, fontSize: 10, fontFamily: 'monospace', color: '#fff' }}>{b.time}</div>
+                            {/* V1 - A-Roll Track */}
+                            <div className="track v1-track" style={{ display: 'flex', gap: 12, minHeight: 120, padding: 8, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                                <div style={{ width: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontWeight: 'bold', fontSize: 12, borderRight: '1px solid rgba(16, 185, 129, 0.2)' }}>V1</div>
+                                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+                                    {scene.blocks.map((b: any, bIdx: number) => {
+                                        const tStart = b.time ? parseFloat(b.time.split(' - ')[0]) : 0;
+                                        return (
+                                            <div
+                                                key={bIdx}
+                                                onClick={() => b.path && onClipClick && onClipClick(b.path, tStart)}
+                                                style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 6, padding: 6, width: 220, flexShrink: 0, cursor: b.path ? 'pointer' : 'default', transition: 'all 0.2s' }}
+                                                onMouseEnter={(e) => b.path && (e.currentTarget.style.transform = 'translateY(-2px)')}
+                                                onMouseLeave={(e) => b.path && (e.currentTarget.style.transform = 'translateY(0)')}
+                                            >
+                                                <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: 4, overflow: 'hidden' }}>
+                                                    {b.img && <img src={b.img} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="A-Roll Thumbnail" />}
+                                                    <div style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.7)', padding: '2px 4px', borderRadius: 4, fontSize: 10, fontFamily: 'monospace', color: '#fff' }}>{b.time}</div>
+                                                </div>
+                                                <div style={{ fontSize: 11, color: '#a7f3d0', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                    "{b.text}"
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: 11, color: '#a7f3d0', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                "{b.text}"
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {scene.blocks.length === 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', paddingLeft: 8, display: 'flex', alignItems: 'center' }}>Processing A-Roll...</div>}
+                                        );
+                                    })}
+                                    {scene.blocks.length === 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', paddingLeft: 8, display: 'flex', alignItems: 'center' }}>Processing A-Roll...</div>}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                    {/* Dip to black toggle between this scene and the next */}
+                    {idx < scenes.length - 1 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                            <div
+                                onClick={() => onToggleDip?.(idx)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '5px 14px', borderRadius: 20, cursor: 'pointer',
+                                    background: dipTransitions?.has(idx) ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.04)',
+                                    border: dipTransitions?.has(idx) ? '1px solid rgba(255,255,255,0.3)' : '1px dashed rgba(255,255,255,0.12)',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                <span style={{ fontSize: 10, color: dipTransitions?.has(idx) ? '#fff' : 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                    {dipTransitions?.has(idx) ? '◼ DIP TO BLACK' : '+ DIP TO BLACK'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </React.Fragment>
             ))}
+
             {content && !content.includes('## **SCENE') && (
                 <StoryPlanLoader content={content} totalClips={totalClips} />
             )}
@@ -397,6 +425,10 @@ export default function Studio() {
 
     // Clip Selection State — tracks which clips are included in the story plan
     const [selectedClipIds, setSelectedClipIds] = useState<Set<number>>(new Set());
+
+    // Transition & Effect Options
+    const [dipTransitions, setDipTransitions] = useState<Set<number>>(new Set());
+    const [fadeToBlack, setFadeToBlack] = useState(false);
 
     // Opt 18: Shared SSE hook — replaces 4 duplicated read loops.
     const sseStream = useSSEStream();
@@ -540,7 +572,13 @@ export default function Studio() {
         setFinalVideoPath('');
         await sseStream(
             'http://localhost:8000/api/build',
-            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_path: plan.path }) },
+            {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                    plan_path: plan.path,
+                    dip_transitions: Array.from(dipTransitions),
+                    fade_to_black: fadeToBlack,
+                })
+            },
             (parsed) => {
                 if (parsed.done) {
                     setBuildStatus('Build Complete!');
@@ -811,19 +849,31 @@ export default function Studio() {
                             {plan.path && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Saved to: {plan.path}</div>}
                         </div>
                         {plan.path && (
-                            <button
-                                className="btn-primary"
-                                onClick={buildVlog}
-                                disabled={!!buildStatus && buildStatus !== 'Build Complete!'}
-                                style={{
-                                    background: (!!buildStatus && buildStatus !== 'Build Complete!') ? 'rgba(255,255,255,0.1)' : 'var(--success)',
-                                    color: (!!buildStatus && buildStatus !== 'Build Complete!') ? 'rgba(255,255,255,0.3)' : '#fff',
-                                    cursor: (!!buildStatus && buildStatus !== 'Build Complete!') ? 'not-allowed' : 'pointer',
-                                    display: 'flex', alignItems: 'center', gap: 8
-                                }}
-                            >
-                                <span>🎞️</span> Build my video
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                                {/* Fade to black toggle */}
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', userSelect: 'none' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={fadeToBlack}
+                                        onChange={e => setFadeToBlack(e.target.checked)}
+                                        style={{ width: 14, height: 14, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                                    />
+                                    Fade to black at end
+                                </label>
+                                <button
+                                    className="btn-primary"
+                                    onClick={buildVlog}
+                                    disabled={!!buildStatus && buildStatus !== 'Build Complete!'}
+                                    style={{
+                                        background: (!!buildStatus && buildStatus !== 'Build Complete!') ? 'rgba(255,255,255,0.1)' : 'var(--success)',
+                                        color: (!!buildStatus && buildStatus !== 'Build Complete!') ? 'rgba(255,255,255,0.3)' : '#fff',
+                                        cursor: (!!buildStatus && buildStatus !== 'Build Complete!') ? 'not-allowed' : 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: 8
+                                    }}
+                                >
+                                    <span>🋎️</span> Build my video
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -854,6 +904,12 @@ export default function Studio() {
                         content={plan.content}
                         totalClips={clips.length}
                         onClipClick={(path, startTime) => setActiveVideo({ path, startTime })}
+                        dipTransitions={dipTransitions}
+                        onToggleDip={(idx) => setDipTransitions(prev => {
+                            const next = new Set(prev);
+                            next.has(idx) ? next.delete(idx) : next.add(idx);
+                            return next;
+                        })}
                     />
                 </div>
             )}

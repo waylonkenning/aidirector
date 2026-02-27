@@ -527,6 +527,8 @@ def get_insights():
 
 class BuildRequest(BaseModel):
     plan_path: str
+    dip_transitions: list[int] = []
+    fade_to_black: bool = False
 
 
 @app.post("/api/build")
@@ -539,8 +541,13 @@ def build_video(req: BuildRequest):
     
     def generate_build_logs():
         import subprocess
+        cmd = ["python3", build_script, req.plan_path]
+        if req.dip_transitions:
+            cmd += ["--dip-transitions"] + [str(i) for i in req.dip_transitions]
+        if req.fade_to_black:
+            cmd += ["--fade-to-black"]
         process = subprocess.Popen(
-            ["python3", build_script, req.plan_path],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
