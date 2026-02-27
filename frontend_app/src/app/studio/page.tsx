@@ -209,12 +209,14 @@ function VideoBuildLoader({ logs, status }: { logs: string[], status: string }) 
 }
 
 // Opt 13: NLEViewer with memoised parsing — only re-runs when `content` changes, not on every SSE chunk.
-function NLEViewer({ content, totalClips, onClipClick, dipTransitions, onToggleDip }: {
+function NLEViewer({ content, totalClips, onClipClick, dipTransitions, onToggleDip, lowerThirds, onToggleLowerThird }: {
     content: string,
     totalClips: number,
     onClipClick?: (path: string, startTime: number) => void,
     dipTransitions?: Set<number>,
     onToggleDip?: (idx: number) => void,
+    lowerThirds?: Set<number>,
+    onToggleLowerThird?: (idx: number) => void,
 }) {
     const scenes = useMemo(() => {
         const lines = content.split('\n');
@@ -276,7 +278,21 @@ function NLEViewer({ content, totalClips, onClipClick, dipTransitions, onToggleD
             {scenes.map((scene: any, idx: number) => (
                 <React.Fragment key={idx}>
                     <div style={{ marginBottom: 0, background: '#111827', padding: 20, borderRadius: 12, border: '1px solid #1f2937' }}>
-                        <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 20, fontSize: 16 }}>SCENE {idx + 1}: {scene.title}</h3>
+                        <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 20, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>SCENE {idx + 1}: {scene.title}</span>
+                            <div
+                                onClick={(e) => { e.stopPropagation(); onToggleLowerThird?.(idx); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6,
+                                    cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.2s',
+                                    background: lowerThirds?.has(idx) ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                    border: lowerThirds?.has(idx) ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.1)',
+                                    color: lowerThirds?.has(idx) ? '#fff' : 'rgba(255,255,255,0.4)',
+                                }}
+                            >
+                                <span>{lowerThirds?.has(idx) ? '◼' : '☐'} TITLE</span>
+                            </div>
+                        </h3>
                         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {/* V2 - B-Roll Track */}
                             <div className="track v2-track" style={{ display: 'flex', gap: 12, minHeight: 90, padding: 8, background: 'rgba(59, 130, 246, 0.05)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.1)' }}>
@@ -429,6 +445,8 @@ export default function Studio() {
     // Transition & Effect Options
     const [dipTransitions, setDipTransitions] = useState<Set<number>>(new Set());
     const [fadeToBlack, setFadeToBlack] = useState(false);
+    const [lowerThirds, setLowerThirds] = useState<Set<number>>(new Set());
+    const [globalLowerThirds, setGlobalLowerThirds] = useState(false);
 
     // Opt 18: Shared SSE hook — replaces 4 duplicated read loops.
     const sseStream = useSSEStream();
@@ -567,6 +585,19 @@ export default function Studio() {
 
     const buildVlog = async () => {
         if (!plan) return;
+
+        // Extract scene titles for lower thirds
+        const sceneTitles: Record<number, string> = {};
+        const lines = plan.content.split('\n');
+        let sceneIdx = 0;
+        for (const line of lines) {
+            if (line.startsWith('## **SCENE')) {
+                const title = line.replace(/## \*\*SCENE \d+: (.*?)\*\*/, '$1').trim();
+                sceneTitles[sceneIdx] = title;
+                sceneIdx++;
+            }
+        }
+
         setBuildStatus('Triggering FFmpeg build...');
         setBuildLogs([]);
         setFinalVideoPath('');
@@ -577,6 +608,8 @@ export default function Studio() {
                     plan_path: plan.path,
                     dip_transitions: Array.from(dipTransitions),
                     fade_to_black: fadeToBlack,
+                    scene_titles: sceneTitles,
+                    lower_thirds: Array.from(lowerThirds),
                 })
             },
             (parsed) => {
@@ -860,6 +893,28 @@ export default function Studio() {
                                     />
                                     Fade to black at end
                                 </label>
+                                {/* Global lower thirds toggle */}
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', userSelect: 'none' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={globalLowerThirds}
+                                        onChange={e => {
+                                            const val = e.target.checked;
+                                            setGlobalLowerThirds(val);
+                                            if (val) {
+                                                // Enable for all existing scenes
+                                                const total = plan.content.split('## **SCENE').length - 1;
+                                                const all = new Set<number>();
+                                                for (let i = 0; i < total; i++) all.add(i);
+                                                setLowerThirds(all);
+                                            } else {
+                                                setLowerThirds(new Set());
+                                            }
+                                        }}
+                                        style={{ width: 14, height: 14, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                                    />
+                                    Lower thirds on all
+                                </label>
                                 <button
                                     className="btn-primary"
                                     onClick={buildVlog}
@@ -906,6 +961,12 @@ export default function Studio() {
                         onClipClick={(path, startTime) => setActiveVideo({ path, startTime })}
                         dipTransitions={dipTransitions}
                         onToggleDip={(idx) => setDipTransitions(prev => {
+                            const next = new Set(prev);
+                            next.has(idx) ? next.delete(idx) : next.add(idx);
+                            return next;
+                        })}
+                        lowerThirds={lowerThirds}
+                        onToggleLowerThird={(idx) => setLowerThirds(prev => {
                             const next = new Set(prev);
                             next.has(idx) ? next.delete(idx) : next.add(idx);
                             return next;

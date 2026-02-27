@@ -529,6 +529,8 @@ class BuildRequest(BaseModel):
     plan_path: str
     dip_transitions: list[int] = []
     fade_to_black: bool = False
+    scene_titles: dict[int, str] = {}
+    lower_thirds: list[int] = []
 
 
 @app.post("/api/build")
@@ -546,6 +548,10 @@ def build_video(req: BuildRequest):
             cmd += ["--dip-transitions"] + [str(i) for i in req.dip_transitions]
         if req.fade_to_black:
             cmd += ["--fade-to-black"]
+        if req.scene_titles:
+            cmd += ["--scene-titles"] + [f"{k}:{v}" for k, v in req.scene_titles.items()]
+        if req.lower_thirds:
+            cmd += ["--lower-thirds"] + [str(i) for i in req.lower_thirds]
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,

@@ -247,11 +247,24 @@ def main():
                         help='Scene gap indices (0-based) that get a dip to black (e.g. 0 2)')
     parser.add_argument('--fade-to-black', action='store_true',
                         help='Apply a 1-second fade to black at the end of the final video')
+    parser.add_argument('--scene-titles', nargs='*', default=[],
+                        help='Scene titles in "index:title" format (e.g. "0:Intro" "1:Walking")')
+    parser.add_argument('--lower-thirds', nargs='*', type=int, default=[],
+                        help='Indices of scenes that should have lower thirds titles displayed')
     args = parser.parse_args()
 
     plan_path = args.plan_path
     dip_set = set(args.dip_transitions or [])
     fade_to_black = args.fade_to_black
+    
+    # Parse scene titles: {"0": "Title", ...}
+    scene_titles_map = {}
+    for st in args.scene_titles:
+        if ':' in st:
+            idx_str, title = st.split(':', 1)
+            scene_titles_map[int(idx_str)] = title
+            
+    lower_thirds_set = set(args.lower_thirds or [])
 
     # Clear the temporary build directory before starting
     print(f"Cleaning temporary build directory: {TEMP_DIR}")
@@ -266,10 +279,39 @@ def main():
     scenes = parse_plan(plan_path)
 
     build_list = []
+    # Identify a font path for macOS (fallback for the demo)
+    macos_font = "/System/Library/Fonts/Supplemental/Helvetica.ttc"
+    if not os.path.exists(macos_font):
+        macos_font = "Helvetica" # Fallback to generic font name
+
     for i, scene in enumerate(scenes):
         final_scene_file = process_scene(scene)
-        if final_scene_file:
-            build_list.append(final_scene_file)
+        if not final_scene_file:
+            continue
+            
+        # Apply Lower Third if requested
+        if i in lower_thirds_set and i in scene_titles_map:
+            title = scene_titles_map[i].replace("'", "").replace(":", "") # Basic sanitize
+            titled_scene_file = final_scene_file.replace(".mp4", "_titled.mp4")
+            print(f"Applying lower third to scene {i}: '{title}'", flush=True)
+            
+            # Filter: drawbox (semi-transparent bar) + drawtext
+            # Applies for first 3 seconds (between(t,0,3))
+            lt_filter = (
+                f"drawbox=y=ih-h-40:color=black@0.6:width=iw:height=60:t=fill:enable='between(t,0,3)',"
+                f"drawtext=text='{title}':fontcolor=white:fontsize=36:x=40:y=h-th-50:fontfile={macos_font}:enable='between(t,0,3)'"
+            )
+            
+            lt_cmd = [
+                'ffmpeg', '-i', final_scene_file,
+                '-vf', lt_filter,
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+                '-c:a', 'copy', '-y', titled_scene_file
+            ]
+            run_ffmpeg(lt_cmd)
+            final_scene_file = titled_scene_file
+            
+        build_list.append(final_scene_file)
 
     if not build_list:
         print("\nError: No valid scenes could be built (likely due to missing A-Roll data).", flush=True)
