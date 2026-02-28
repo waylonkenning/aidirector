@@ -55,8 +55,15 @@ The engine builds the foundation for automated video editing:
 -   **Phase 2 (Auto-Editor Agent):** Surgical segment-level analysis for frame-accurate cutting (Live).
 -   **Phase 3 (Editorial Storyboard):** Automatic generation of movie-script style summaries with A-Roll/B-Roll classification.
 
-## ✂️ Auto-Editor Agent
-For precise editing, use `~/scripts/auto_editor.py`. This script generates a frame-accurate timeline by pairing sentence segments with visual descriptions. See **`AUTO_EDITOR_AGENT.md`** for full technical specs.
+## 🧹 Archive Maintenance
+To keep the library clean, the system provides specialized tools in the **Settings (⚙️)** panel:
+
+1.  **Smart Duplicate Detection**:
+    *   **Logic:** Identifies clips with near-identical durations (±0.1s) created within a **5-minute window**. 
+    *   **Function:** Automatically suggests a "Keeper" based on filename quality (camera originals vs downloads).
+2.  **Live Photo Cleanup**:
+    *   **Logic:** Identifies clips shorter than **3 seconds**.
+    *   **Function:** Marks them as `livephoto` status, removing them from the Studio search and archive stats.
 
 ---
 
@@ -79,4 +86,4 @@ The entire archive is now searchable via the local **AI Studio Next.js Interface
 -   **Resumability:** The script can be stopped and restarted anytime; it automatically skips finished files.
 
 ---
-**Last Updated:** Sunday, Feb 22, 2026 - 11:30 AM
+**Last Updated:** Saturday, Feb 28, 2026 - 02:50 PM

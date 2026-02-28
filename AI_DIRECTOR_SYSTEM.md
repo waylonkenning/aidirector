@@ -41,14 +41,15 @@ To generate a video, open your browser and navigate to the local Next.js fronten
 
 ### **Repeatable Workflow:**
 1.  **Search & Filter:** Enter a keyword (e.g., "dumplings") or select a date on the Calendar heatmap.
-2.  **Transcribe:** Optionally click "🎙️ Upgrade All Transcription" to use the heavy `whisper-large-v3-mlx` model on selected clips.
-3.  **Generate Plan:** Click "🎬 Generate Story Plan". The UI will animate as Gemini analyzes the clips and drafts a chronological narrative.
-4.  **Review Plan:** The generated plan appears in the interactive NLE Viewer components on-screen.
-5.  **Build Video:** Click "🎞️ Build my video" to trigger the backend FFmpeg pipeline (`generate_vlog.py`) and watch the streaming debug log. The final video will appear in a player when finished.
+2.  **Clean Archive:** Use the **Hide Selected (🚫)** button or individual **Hide (✕)** buttons on clip cards to mark redundant or unwanted files as duplicates.
+3.  **Transcribe:** Select specific clips and click **"🎙️ Transcribe Clips (x)"** to use the heavy `whisper-large-v3-mlx` model only on what you need.
+4.  **Generate Plan:** Click **"🎬 Generate Story Plan"**. The UI will animate as Gemini analyzes the clips and drafts a chronological narrative.
+5.  **Review Plan:** The generated plan appears in the interactive NLE Viewer.
+6.  **Build Video:** Click **"🎞️ Build my video"**. You can toggle **"Fade to black at end"**, **"Lower thirds on all"**, or individual **"Dip to black"** transitions between scenes.
 
 ---
 
 ## 📋 Data Flow Architecture
 `Raw Footage` -> `Director Engine (DB)` -> `Auto-Editor (MD/JSON Plan)` -> `FFmpeg (Final MP4)`
 
-**Last Updated:** Sunday, Feb 22, 2026 - 11:45 AM
+**Last Updated:** Saturday, Feb 28, 2026 - 02:45 PM

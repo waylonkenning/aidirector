@@ -18,6 +18,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - Complex state management for the NLE (Non-Linear Editor) Viewer is handled in `src/app/studio/page.tsx`.
 - Long-running inference processes (Story Plan Generation, Subprocess Transcription, and Vlog Rendering) stream their UI progress bar updates over WebSockets/SSE.
 
-## Settings & Models
-
 You no longer need to pass environment variables directly into Next.js. The AI Studio interface features a unified `⚙️ Settings` modal that manages the Gemini API Key state securely with the backend.
+
+## Maintenance Tools
+
+The Settings tab now includes dedicated buttons for **Smart Duplicate Removal** and **Live Photo Cleanup**. These tools interact with the `/api/duplicates` and `/api/video/hide_short` endpoints to maintain a high-quality video library.

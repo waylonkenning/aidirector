@@ -4,7 +4,7 @@ A fully localized, serverless video ingestion pipeline and conversational AI eng
 
 AI Director allows you to dump entire SD cards or massive folders of raw video clips (`.mp4`, `.mov`, `.avi`, `.mkv`, etc.) onto a drive. The engine will autonomously scan them, generate proxy thumbnails, transcribe all dialogue locally using MLX Whisper, and generate semantic visual tags using a local Vision Language Model (MLX LLaVA). 
 
-You can then search, filter, and chat with your entire video archive via a beautiful Next.js frontend, or ask the AI to generate JSON timelines to automatically import into Premiere Pro/DaVinci Resolve!
+You can then search, filter, and chat with your entire video archive via a beautiful Next.js frontend, or ask the AI to generate JSON timelines to automatically import into Premiere Pro/DaVinci Resolve! The Studio now features a powerful **"Hide Selected"** tool to quickly mark redundant clips as duplicates.
 
 ## System Requirements
 
@@ -38,6 +38,7 @@ Finally, open your browser to `http://localhost:3000`.
 3. Add the absolute folders mapping to your raw video files under **Target Scan Directories**.
 4. Enter your Gemini API key (this is passed to the LLM agent that handles natural language searches—your actual video transcription and tagging is all done 100% locally).
 5. Click **Scan Directory & Process Videos** to start building your database!
+6. Use the **Archive Maintenance** section to bulk-hide duplicates (proximity-based) or short Live Photos (< 3s).
 
 > **Note on First Run:** The exact first time you click "Scan", the backend will automatically pull the MLX versions of Whisper and LLaVA from HuggingFace. This initial download can take several minutes and occupy 5-10GB of disk space.
 

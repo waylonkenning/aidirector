@@ -35,9 +35,12 @@ The result is a structured JSON timeline that pairs **Narrative (A-Roll)** with 
 The timeline mapping data generated above is consumed by the **Story Plan Generator**. Once the LLM signs off on a chronological sequence of segments, our programmatic FFmpeg builder (`generate_vlog.py`) executes the edit:
 1. **Removes "Dead Air":** It slices the exact millisecond `[start-end]` bounds returned by the agent.
 2. **Smart Overlays:** It injects exact B-roll overlays defined by the semantic matches.
-3. **Format Normalization:** It scales everything to 1920x1080, normalizes frame rates to 30fps, and forces uniform stereo audio layout to prevent `concat` demuxer crashes natively.
+3. **Format Normalization:** It scales everything to 1920x1080, normalizes frame rates to 30fps, and forces uniform stereo audio layout.
+4. **Transition Effects:**
+    - **Dip to Black:** A 1-second graphical transition can be enabled per-scene to provide a professional pacing break.
+    - **Fade to Black:** A global end-of-video fade can be enabled to smoothly close the narrative.
 
 Using the "🎞️ Build my video" button in the AI Studio Interface triggers this exact build pipeline sequentially.
 
 ---
-**Last Updated:** Sunday, Feb 22, 2026 - 07:45 AM
+**Last Updated:** Saturday, Feb 28, 2026 - 02:55 PM

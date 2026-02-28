@@ -32,6 +32,8 @@ graph TD
         TranscriptionRoute[/api/transcription/upgrade]
         InsightsRoute[/api/insights]
         VideoRoute[/api/video & /api/thumbnail]
+        HideRoute[/api/video/hide & /api/video/hide_short]
+        DuplicatesRoute[/api/duplicates & /api/duplicates/hide_all]
     end
 
     %% Core Application Logic
@@ -84,7 +86,7 @@ graph TD
 
 ### 1. The Database (`Video_Archive.db`)
 Central source of truth storing three primary tables:
--   `videos`: Stores file path, filename, duration, visual tags (comma-separated), created date, and resolution.
+-   `videos`: Stores file path, filename, duration, visual tags (comma-separated), created date, resolution, and `status` (e.g. `pending`, `duplicate`, `livephoto`).
 -   `video_search`: Full-Text Search (FTS5) virtual table that indexes the transcriptions for fast keyword searching.
 -   `video_segments`: Caches analyzed segment blocks (start/end times, text) processed by the vision model.
 
@@ -106,7 +108,8 @@ Provides the core functionalities requested by the frontend:
 -   `get_or_create_segments()`: Validates and caches visual/audio segmentation using Gemini Pro.
 -   `generate_story_plan_stream()`: Generates a final Story Plan (NLE JSON format) by pulling `A-ROLL` segments and matching them intelligently with `B-ROLL` overlaps, using Gemini to autonomously craft the storyline directly.
 -   `upgrade_transcription_stream()`: Forces a re-transcription using the heavy `whisper-large-v3-mlx` model, isolated in a subprocess to prevent memory segmentation faults, including aggressive hallucination filtering safeguards.
--   `build_vlog_stream()`: Given a generated Story Plan, invokes complex `FFmpeg` filters to construct an `.mp4` video.
+-   `build_vlog_stream()`: Given a generated Story Plan and build options (dip_transitions, fade_to_black, etc.), invokes complex `FFmpeg` filters to construct an `.mp4` video.
+-   `get_duplicates()`: Identifies groups of likely duplicates using proximity-based duration and timestamp (5min) matching.
 
 Note: The `/api/thumbnail` endpoint implements an MD5 disk cache for FFmpeg frame generation to massively speed up UI rendering during timeline scrubs.
 
