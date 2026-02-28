@@ -24,7 +24,12 @@ VISION_MODEL = "mlx-community/nanoLLaVA-1.5-8bit"
 def get_clips_by_date(date_str):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, path, filename, duration_sec, transcription, visual_tags, created FROM videos WHERE date(created) = ? ORDER BY filename ASC", (date_str,))
+    cursor.execute("""
+        SELECT id, path, filename, duration_sec, transcription, visual_tags, created 
+        FROM videos 
+        WHERE date(created) = ? AND (status IS NULL OR status != 'duplicate')
+        ORDER BY filename ASC
+    """, (date_str,))
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -34,8 +39,9 @@ def get_clips_by_query(query):
     cursor = conn.cursor()
     cursor.execute('''
         SELECT id, path, filename, duration_sec, transcription, visual_tags, created FROM videos 
-        WHERE id IN (SELECT video_id FROM video_search WHERE transcription MATCH ?)
-        OR visual_tags LIKE ?
+        WHERE (id IN (SELECT video_id FROM video_search WHERE transcription MATCH ?)
+        OR visual_tags LIKE ?)
+        AND (status IS NULL OR status != 'duplicate')
         ORDER BY created ASC
     ''', (query, f"%{query}%"))
     rows = cursor.fetchall()
@@ -45,14 +51,14 @@ def get_clips_by_query(query):
 def get_db_stats():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM videos')
+    cursor.execute("SELECT COUNT(*) FROM videos WHERE (status IS NULL OR status != 'duplicate')")
     total = cursor.fetchone()[0]
     
-    cursor.execute('SELECT COUNT(*) FROM videos WHERE transcription IS NOT NULL AND transcription != ""')
+    cursor.execute("SELECT COUNT(*) FROM videos WHERE transcription IS NOT NULL AND transcription != '' AND (status IS NULL OR status != 'duplicate')")
     transcribed = cursor.fetchone()[0]
     
     # Get grouped timeline counts for calendar UI dots
-    cursor.execute('SELECT date(created), COUNT(id) FROM videos GROUP BY date(created)')
+    cursor.execute("SELECT date(created), COUNT(id) FROM videos WHERE (status IS NULL OR status != 'duplicate') GROUP BY date(created)")
     timeline_rows = cursor.fetchall()
     
     conn.close()

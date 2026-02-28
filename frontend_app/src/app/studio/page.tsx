@@ -436,9 +436,6 @@ export default function Studio() {
     const [isUpgrading, setIsUpgrading] = useState(false);
     const [upgradeLogs, setUpgradeLogs] = useState<string[]>([]);
 
-    // Duplicate Detection State (client-side filter on current results)
-    const [hideDuplicates, setHideDuplicates] = useState(true);
-
     // Clip Selection State — tracks which clips are included in the story plan
     const [selectedClipIds, setSelectedClipIds] = useState<Set<number>>(new Set());
 
@@ -451,23 +448,10 @@ export default function Studio() {
     // Opt 18: Shared SSE hook — replaces 4 duplicated read loops.
     const sseStream = useSSEStream();
 
-    // Opt 14: Memoize paginated clips slice — only recomputes when clips/page/hideDuplicates changes.
-    const dedupedClips = useMemo(() => {
-        if (!hideDuplicates) return clips;
-        // Keep only the first clip per (created, rounded duration) group.
-        // Same timestamp + same length = same clip regardless of filename.
-        const seen = new Set<string>();
-        return clips.filter((c: any) => {
-            const key = `${c.created}|${Math.round(parseFloat(c.duration) || 0)}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
-    }, [clips, hideDuplicates]);
-
+    // Opt 14: Paginated clips slice.
     const paginatedClips = useMemo(
-        () => dedupedClips.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-        [dedupedClips, currentPage]
+        () => clips.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+        [clips, currentPage]
     );
 
     // Opt 15: Pre-compute calendar timeline into a Map for O(1) tile lookups.
@@ -502,7 +486,7 @@ export default function Studio() {
             setBuildStatus('');
             setBuildLogs([]);
             setFinalVideoPath('');
-            // Default: all deduped clips selected
+            // Default: all results selected
             setSelectedClipIds(new Set((data.clips || []).map((c: any) => c.id)));
         } catch (e) {
             alert('Error searching clips');
@@ -581,6 +565,28 @@ export default function Studio() {
             () => alert('Error upgrading transcription')
         );
         setIsUpgrading(false);
+    };
+
+    const hideClip = async (id: number) => {
+        // Optimistic UI: remove from state first
+        setClips(prev => prev.filter(c => c.id !== id));
+        setSelectedClipIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
+
+        try {
+            await fetch('http://localhost:8000/api/video/hide', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+        } catch (err) {
+            console.error('Failed to hide clip', err);
+            // Re-fetch search if hide failed to ensure consistency
+            searchClips();
+        }
     };
 
     const buildVlog = async () => {
@@ -749,7 +755,7 @@ export default function Studio() {
                                 {selectedClipIds.size} selected
                             </span>
                             <button
-                                onClick={() => setSelectedClipIds(new Set(dedupedClips.map((c: any) => c.id)))}
+                                onClick={() => setSelectedClipIds(new Set(clips.map((c: any) => c.id)))}
                                 style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', fontSize: 12, cursor: 'pointer', padding: 0 }}
                             >All</button>
                             <button
@@ -762,7 +768,7 @@ export default function Studio() {
                                 <span>🎙️</span> Upgrade All Transcription
                             </button>
                             <button className="btn-primary" onClick={generatePlan} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🎬</span> Generate Story Plan {selectedClipIds.size > 0 && selectedClipIds.size < dedupedClips.length ? `(${selectedClipIds.size} clips)` : ''}
+                                <span>🎬</span> Generate Story Plan {selectedClipIds.size > 0 && selectedClipIds.size < clips.length ? `(${selectedClipIds.size} clips)` : ''}
                             </button>
                         </div>
                     </div>
@@ -798,22 +804,26 @@ export default function Studio() {
                                                 checked={selectedClipIds.has(c.id)}
                                                 onChange={() => setSelectedClipIds(prev => {
                                                     const next = new Set(prev);
-                                                    next.has(c.id) ? next.delete(c.id) : next.add(c.id);
+                                                    if (next.has(c.id)) next.delete(c.id);
+                                                    else next.add(c.id);
                                                     return next;
                                                 })}
-                                                style={{ flexShrink: 0, width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
+                                                style={{ cursor: 'pointer', width: 16, height: 16 }}
                                             />
-                                            <span style={{ flexShrink: 0 }}>▶️</span>
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.filename}</span>
+                                            <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.filename}</span>
                                         </div>
-                                        <button
-                                            onClick={() => upgradeSingleClip(c)}
-                                            disabled={loading || isUpgrading}
-                                            title="Upgrade Transcription for this video"
-                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem', opacity: (loading || isUpgrading) ? 0.5 : 1, padding: 0, flexShrink: 0 }}
-                                        >
-                                            🎙️
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); hideClip(c.id); }}
+                                                style={{ background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: '2px 4px', borderRadius: 4, transition: 'all 0.2s' }}
+                                                onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
+                                                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
+                                                title="Mark as duplicate/Hide"
+                                            >
+                                                ✕
+                                            </button>
+                                            <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-tertiary)', padding: '2px 6px', borderRadius: 10, letterSpacing: '0.05em' }}>{c.id}</span>
+                                        </div>
                                     </div>
                                     {/* Opt 12: Render thumbnail first, swap to video on click. */}
                                     <ClipPreview path={c.path} thumbSrc={thumbSrc} />

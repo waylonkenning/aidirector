@@ -180,9 +180,24 @@ export default function Settings() {
         setLoadingDupes(false);
     };
 
-    const deleteFromIndex = async (id: number) => {
-        if (!confirm('Remove this video from the AI Director index? The original file on disk is NOT deleted.')) return;
-        await fetch('http://localhost:8000/api/video/delete', {
+    const hideAllDuplicates = async () => {
+        if (!confirm(`Are you sure you want to hide all ${duplicateGroups.reduce((s, g) => s + g.clips.length - 1, 0)} duplicate clips? This will hide them from the Studio view, but the original files on disk are untouched.`)) return;
+
+        setLoadingDupes(true);
+        try {
+            const res = await fetch('http://localhost:8000/api/duplicates/hide_all', { method: 'POST' });
+            const data = await res.json();
+            alert(`Successfully hidden ${data.hidden_count} duplicate clips.`);
+            await fetchDuplicates(); // Refresh list
+        } catch (e) {
+            alert('Error hiding duplicates');
+        }
+        setLoadingDupes(false);
+    };
+
+    const hideFromIndex = async (id: number) => {
+        if (!confirm('Mark this video as a duplicate? This will hide it from the Studio view, but the original file on disk is NOT deleted.')) return;
+        await fetch('http://localhost:8000/api/video/hide', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
@@ -391,7 +406,7 @@ export default function Settings() {
                             disabled={loadingDupes}
                             style={{ width: '100%', padding: '10px', borderRadius: '6px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#F87171', cursor: loadingDupes ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: loadingDupes ? 0.6 : 1 }}
                         >
-                            {loadingDupes ? '⏳ Scanning archive...' : showDuplicates ? `🔴 Hide Duplicates (${duplicateGroups.length} groups)` : '🔴 Find All Duplicate Files'}
+                            {loadingDupes ? '⏳ Scanning archive...' : showDuplicates ? `🔴 Hide Duplicates Panel` : '🔴 Find All Duplicate Files'}
                         </button>
 
                         {showDuplicates && !loadingDupes && (
@@ -400,8 +415,16 @@ export default function Settings() {
                                     <div style={{ padding: 16, textAlign: 'center', fontSize: 13, opacity: 0.5 }}>✅ No duplicates found in your archive.</div>
                                 ) : (
                                     <>
-                                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                                            {duplicateGroups.reduce((s: number, g: any) => s + g.clips.length - 1, 0)} redundant files across {duplicateGroups.length} groups
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                                                {duplicateGroups.reduce((s: number, g: any) => s + g.clips.length - 1, 0)} redundant files across {duplicateGroups.length} groups
+                                            </div>
+                                            <button
+                                                onClick={hideAllDuplicates}
+                                                style={{ padding: '4px 12px', borderRadius: 4, background: '#F87171', border: 'none', color: '#111', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                                            >
+                                                Hide All Duplicates
+                                            </button>
                                         </div>
                                         {duplicateGroups.map((group: any) => (
                                             <div key={group.key} style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, overflow: 'hidden' }}>
@@ -422,11 +445,11 @@ export default function Settings() {
                                                         </div>
                                                         {!clip.suggested_keep && (
                                                             <button
-                                                                onClick={() => deleteFromIndex(clip.id)}
-                                                                title="Remove from index only — file on disk is untouched"
+                                                                onClick={() => hideFromIndex(clip.id)}
+                                                                title="Mark as duplicate/Hide"
                                                                 style={{ flexShrink: 0, padding: '3px 8px', borderRadius: 4, fontSize: 10, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#F87171', cursor: 'pointer' }}
                                                             >
-                                                                Remove
+                                                                Hide
                                                             </button>
                                                         )}
                                                     </div>

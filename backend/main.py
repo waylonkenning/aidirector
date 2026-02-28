@@ -261,6 +261,53 @@ def delete_video_from_index(req: DeleteRequest):
     conn.close()
     return {"status": "deleted", "id": req.id}
 
+@app.post("/api/video/hide")
+def hide_video_from_index(req: DeleteRequest):
+    """
+    Marks a video as a duplicate/hidden in the DB.
+    It will no longer appear in search results or stats.
+    """
+    import sqlite3 as _sqlite3
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    conn = _sqlite3.connect(db_path, timeout=30)
+    cursor = conn.cursor()
+    # Mark as duplicate so it's filtered out of all queries
+    cursor.execute("UPDATE videos SET status = 'duplicate' WHERE id = ?", (req.id,))
+    # Also remove from FTS index so it doesn't match queries anymore
+    cursor.execute("DELETE FROM video_search WHERE video_id = ?", (req.id,))
+    conn.commit()
+    conn.close()
+    return {"status": "hidden", "id": req.id}
+
+
+@app.post("/api/duplicates/hide_all")
+def hide_all_duplicates():
+    """
+    Finds all duplicate groups and hides everything EXCEPT the suggested 'keeper' in each group.
+    Returns the number of clips hidden.
+    """
+    dupes_data = get_duplicates()
+    groups = dupes_data.get("groups", [])
+    
+    import sqlite3 as _sqlite3
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    conn = _sqlite3.connect(db_path, timeout=30)
+    cursor = conn.cursor()
+    
+    hidden_count = 0
+    for group in groups:
+        for clip in group["clips"]:
+            if not clip.get("suggested_keep"):
+                # Hide this one
+                cursor.execute("UPDATE videos SET status = 'duplicate' WHERE id = ?", (clip["id"],))
+                cursor.execute("DELETE FROM video_search WHERE video_id = ?", (clip["id"],))
+                hidden_count += 1
+                
+    conn.commit()
+    conn.close()
+    return {"status": "success", "hidden_count": hidden_count}
 
 @app.post("/api/plan")
 def create_plan(req: PlanRequest):
