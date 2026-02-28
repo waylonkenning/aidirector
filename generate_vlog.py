@@ -49,16 +49,8 @@ def get_clip_duration(path: str) -> float:
 
 
 def generate_black_clip(output_path: str, duration: float = 0.5):
-    """Generate a short black silent clip for dip-to-black transitions."""
-    cmd = [
-        'ffmpeg',
-        '-f', 'lavfi', '-i', f'color=black:s=1280x720:r=30000/1001',
-        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
-        '-t', str(duration),
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-        '-c:a', 'aac', '-ar', '48000', '-ac', '2', '-y', output_path
-    ]
-    run_ffmpeg(cmd)
+    """Deprecated: Fades are now applied directly to transitions."""
+    pass
 
 
 def process_scene(scene):
@@ -317,20 +309,44 @@ def main():
         print("\nError: No valid scenes could be built (likely due to missing A-Roll data).", flush=True)
         sys.exit(1)
 
-    # Generate black transition clip once if needed
-    black_clip = None
-    if dip_set:
-        black_clip = os.path.join(TEMP_DIR, "black_transition.mp4")
-        print("Generating black transition clip...", flush=True)
-        generate_black_clip(black_clip, duration=0.5)
+    # Apply Fades for Dip-to-Black transitions
+    faded_build_list = []
+    for i, b in enumerate(build_list):
+        need_fade_in = (i > 0 and (i - 1) in dip_set)
+        need_fade_out = (i < len(build_list) - 1 and i in dip_set)
+        
+        if need_fade_in or need_fade_out:
+            duration = get_clip_duration(b)
+            faded_scene_file = b.replace(".mp4", "_faded.mp4")
+            v_filters = []
+            a_filters = []
+            
+            if need_fade_in:
+                v_filters.append("fade=t=in:st=0:d=0.5")
+                a_filters.append("afade=t=in:st=0:d=0.5")
+            if need_fade_out:
+                fade_out_start = max(0.0, duration - 0.5)
+                v_filters.append(f"fade=t=out:st={fade_out_start:.3f}:d=0.5")
+                a_filters.append(f"afade=t=out:st={fade_out_start:.3f}:d=0.5")
+            
+            print(f"Applying dip-to-black fades to scene {i}...", flush=True)
+            fade_cmd = [
+                'ffmpeg', '-i', b,
+                '-vf', ",".join(v_filters),
+                '-af', ",".join(a_filters),
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+                '-c:a', 'aac', '-ar', '48000', '-ac', '2', '-y', faded_scene_file
+            ]
+            run_ffmpeg(fade_cmd)
+            faded_build_list.append(faded_scene_file)
+        else:
+            faded_build_list.append(b)
 
-    # FINAL CONCAT — interleave black clips at selected scene boundaries
+    # FINAL CONCAT
     final_list_path = os.path.join(TEMP_DIR, "final_list.txt")
     with open(final_list_path, "w") as f:
-        for i, b in enumerate(build_list):
+        for b in faded_build_list:
             f.write(f"file '{os.path.basename(b)}'\n")
-            if i < len(build_list) - 1 and i in dip_set and black_clip:
-                f.write(f"file '{os.path.basename(black_clip)}'\n")
 
     output_dir = os.path.join(BASE_DIR, "VLOG_OUTPUT")
     os.makedirs(output_dir, exist_ok=True)
