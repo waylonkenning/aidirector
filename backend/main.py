@@ -3,6 +3,7 @@ import sys
 # Triggering uvicorn hot-reload to load ai_director.py changes
 import subprocess
 import warnings
+from collections import defaultdict
 
 # Suppress annoying deprecation warnings from Python 3.9 / google.generativeai
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -204,12 +205,13 @@ def get_duplicates():
     rows = cursor.fetchall()
     conn.close()
 
-    # Group by (created, rounded_duration) — exact timestamp + ~same length = same clip
-    from collections import defaultdict
-    groups: dict = defaultdict(list)
+    # Sort by duration first, then timestamp
+    # We use a buckets of rounded duration (to 1 decimal place)
+    duration_buckets = defaultdict(list)
     for vid_id, path, filename, dur_r, created, snippet, status in rows:
-        key = f"{created}|{dur_r}"
-        groups[key].append({
+        # Using 1 decimal place for duration buckets to handle slight re-encode drift
+        dur_key = round(dur_r, 1) if dur_r else 0
+        duration_buckets[dur_key].append({
             "id": vid_id,
             "path": path,
             "filename": filename,
@@ -219,25 +221,58 @@ def get_duplicates():
             "status": status,
         })
 
-    # Only return groups with 2+ entries (actual duplicates)
+    from datetime import datetime
     duplicate_groups = []
-    for key, members in groups.items():
+    
+    for dur_key, members in duration_buckets.items():
         if len(members) < 2:
             continue
-        # Heuristic: prefer original camera filenames over downloads.
-        # CFNetworkDownload_, Snapchat-, IMG_, VID_ are lower confidence originals.
+            
+        # Within each duration bucket, sort by timestamp
+        members.sort(key=lambda x: x["created"])
+        
+        # Group by proximity (within 5 minutes)
+        current_group = [members[0]]
+        for i in range(1, len(members)):
+            try:
+                t1 = datetime.strptime(current_group[-1]["created"], "%Y-%m-%d %H:%M:%S")
+                t2 = datetime.strptime(members[i]["created"], "%Y-%m-%d %H:%M:%S")
+                diff = abs((t2 - t1).total_seconds())
+                
+                if diff <= 300: # 5 minute window
+                    current_group.append(members[i])
+                else:
+                    if len(current_group) >= 2:
+                        duplicate_groups.append(current_group)
+                    current_group = [members[i]]
+            except Exception:
+                # If parsing fails, don't group
+                if len(current_group) >= 2:
+                    duplicate_groups.append(current_group)
+                current_group = [members[i]]
+                
+        if len(current_group) >= 2:
+            duplicate_groups.append(current_group)
+
+    # Final pass: sort and pick keeper for each group
+    formatted_groups = []
+    for members in duplicate_groups:
         def keeper_score(m: dict) -> int:
             name = m["filename"]
             if any(p in name for p in ["CFNetworkDownload", "Snapchat-", "AUTO_AWESOME"]):
-                return 0   # almost certainly a copy
+                return 0
             if name.startswith(("MAH", "MVI_", "C00", "P100", "MOV_")):
-                return 2   # camera original
-            return 1       # neutral
+                return 2
+            return 1
+            
         members_sorted = sorted(members, key=keeper_score, reverse=True)
         members_sorted[0]["suggested_keep"] = True
-        duplicate_groups.append({"key": key, "clips": members_sorted})
+        formatted_groups.append({
+            "key": f"{members_sorted[0]['created']}|{members_sorted[0]['duration']}",
+            "clips": members_sorted
+        })
 
-    return {"groups": duplicate_groups, "total_groups": len(duplicate_groups)}
+    return {"groups": formatted_groups, "total_groups": len(formatted_groups)}
 
 
 class DeleteRequest(BaseModel):

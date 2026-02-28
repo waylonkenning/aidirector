@@ -590,6 +590,29 @@ export default function Studio() {
         }
     };
 
+    const hideSelectedClips = async () => {
+        const ids = Array.from(selectedClipIds);
+        if (ids.length === 0) return;
+        if (!confirm(`Mark ${ids.length} clips as duplicates? They will be hidden from the Studio.`)) return;
+
+        // Optimistic UI
+        setClips(prev => prev.filter(c => !selectedClipIds.has(c.id)));
+        setSelectedClipIds(new Set());
+
+        try {
+            await Promise.all(ids.map(id =>
+                fetch('http://localhost:8000/api/video/hide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                })
+            ));
+        } catch (err) {
+            console.error('Failed to hide some clips', err);
+            searchClips();
+        }
+    };
+
     const buildVlog = async () => {
         if (!plan) return;
 
@@ -765,6 +788,9 @@ export default function Studio() {
                             >None</button>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
+                            <button className="btn-secondary" onClick={hideSelectedClips} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🚫</span> Hide Selected
+                            </button>
                             <button className="btn-secondary" onClick={upgradeClips} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span>🎙️</span> {isUpgrading ? 'Upgrading...' : `Transcribe Clips (${selectedClipIds.size})`}
                             </button>
