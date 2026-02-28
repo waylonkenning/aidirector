@@ -62,6 +62,7 @@ def load_settings():
             return json.load(f)
     return {
         "geminiModel": "models/gemini-3.1-flash",
+        "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
         "dbPath": os.path.join(os.path.dirname(__file__), "Video_Archive.db"),
         "watchFolders": []
     }
@@ -76,16 +77,49 @@ def get_user_settings():
 
 class SettingsUpdate(BaseModel):
     geminiModel: str = None
+    geminiApiKey: str = None
     dbPath: str = None
     watchFolders: list[str] = None
 
 @app.post("/api/settings")
 def update_user_settings(req: SettingsUpdate):
     settings = load_settings()
+    
     if req.geminiModel:
         settings["geminiModel"] = req.geminiModel
+        
+    if req.geminiApiKey is not None:
+        # Update .env file
+        env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+        
+        # Replace or append GEMINI_API_KEY
+        key_found = False
+        new_lines = []
+        for line in lines:
+            if line.startswith("GEMINI_API_KEY="):
+                new_lines.append(f'GEMINI_API_KEY="{req.geminiApiKey}"\n')
+                key_found = True
+            else:
+                new_lines.append(line)
+        
+        if not key_found:
+            new_lines.append(f'GEMINI_API_KEY="{req.geminiApiKey}"\n')
+            
+        with open(env_path, "w") as f:
+            f.writelines(new_lines)
+            
+        # Re-configure in running process
+        os.environ["GEMINI_API_KEY"] = req.geminiApiKey
+        genai.configure(api_key=req.geminiApiKey)
+        settings["geminiApiKey"] = req.geminiApiKey
+
     if req.dbPath:
         settings["dbPath"] = req.dbPath
+        
     if req.watchFolders is not None:
         settings["watchFolders"] = req.watchFolders
         

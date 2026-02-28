@@ -12,7 +12,7 @@ export default function Settings() {
     const [saving, setSaving] = useState(false);
     const [transcribeProgress, setTranscribeProgress] = useState<{ done: number, total: number, filename: string } | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
-
+    const [geminiApiKey, setGeminiApiKey] = useState('');
     // Archive-wide duplicate scanner
     const [duplicateGroups, setDuplicateGroups] = useState<any[]>([]);
     const [showDuplicates, setShowDuplicates] = useState(false);
@@ -33,6 +33,7 @@ export default function Settings() {
             .then(res => res.json())
             .then(data => {
                 if (data.geminiModel) setSelectedModel(data.geminiModel);
+                if (data.geminiApiKey) setGeminiApiKey(data.geminiApiKey);
                 if (data.dbPath) setDbPath(data.dbPath);
 
                 // Load saved watch folders, fallback to the default input state
@@ -98,6 +99,12 @@ export default function Settings() {
         const newPath = e.target.value;
         setDbPath(newPath);
         await handleSettingsUpdate({ dbPath: newPath });
+    };
+
+    const handleApiKeyChange = async (e: any) => {
+        const newKey = e.target.value;
+        setGeminiApiKey(newKey);
+        await handleSettingsUpdate({ geminiApiKey: newKey });
     };
 
     const updateWatchFolder = async (index: number, val: string) => {
@@ -288,7 +295,7 @@ export default function Settings() {
                                     outline: 'none'
                                 }}
                             />
-                            <p style={{ marginTop: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>This is the absolute path to the main SQLite `.db` file mapping all indexes, transcripts, and model outputs.</p>
+                            <p style={{ marginTop: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>This is the absolute path to the main SQLite `.db` file mapping all indexes, transcriptions, and model outputs.</p>
                         </div>
                     </div>
 
@@ -297,7 +304,24 @@ export default function Settings() {
                             <span style={{ color: 'var(--accent-secondary)', marginRight: '8px' }}>🧠</span>
                             AI Configuration
                         </div>
-                        <div style={{ marginBottom: 12 }}>
+                        <div style={{ marginBottom: 24 }}>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Gemini API Key
+                            </label>
+                            <input
+                                type="password"
+                                className="settings-input"
+                                value={geminiApiKey}
+                                onChange={handleApiKeyChange}
+                                placeholder="AIza..."
+                                style={{ width: '100%', padding: '12px', borderRadius: 8, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                            />
+                            <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+                                Stored securely in your <code>.env</code> file. Used for story planning and search intelligence.
+                            </p>
+                        </div>
+
+                        <div style={{ marginBottom: 24 }}>
                             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
                                 Director Generation Model
                             </label>
