@@ -540,9 +540,10 @@ export default function Studio() {
     const upgradeClips = async () => {
         setIsUpgrading(true);
         setUpgradeLogs([]);
+        const clipsToUpgrade = clips.filter((c: any) => selectedClipIds.has(c.id));
         await sseStream(
             'http://localhost:8000/api/transcription/upgrade',
-            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: query || 'Upgrade', clips }) },
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: query || 'Upgrade', clips: clipsToUpgrade }) },
             (parsed) => {
                 if (parsed.chunk?.startsWith('DONE')) { setUpgradeLogs(prev => [...prev, 'Upgrade Complete!']); searchClips(); }
                 else if (parsed.chunk) setUpgradeLogs(prev => [...prev, parsed.chunk.trim()]);
@@ -764,8 +765,8 @@ export default function Studio() {
                             >None</button>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
-                            <button className="btn-secondary" onClick={upgradeClips} disabled={loading || isUpgrading} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🎙️</span> Upgrade All Transcription
+                            <button className="btn-secondary" onClick={upgradeClips} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🎙️</span> {isUpgrading ? 'Upgrading...' : `Transcribe Clips (${selectedClipIds.size})`}
                             </button>
                             <button className="btn-primary" onClick={generatePlan} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span>🎬</span> Generate Story Plan {selectedClipIds.size > 0 && selectedClipIds.size < clips.length ? `(${selectedClipIds.size} clips)` : ''}
@@ -967,7 +968,7 @@ export default function Studio() {
                     )}
                     <NLEViewer
                         content={plan.content}
-                        totalClips={clips.length}
+                        totalClips={selectedClipIds.size}
                         onClipClick={(path, startTime) => setActiveVideo({ path, startTime })}
                         dipTransitions={dipTransitions}
                         onToggleDip={(idx) => setDipTransitions(prev => {
