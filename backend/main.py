@@ -316,6 +316,29 @@ def hide_video_from_index(req: DeleteRequest):
     return {"status": "hidden", "id": req.id}
 
 
+@app.post("/api/video/hide_short")
+def hide_short_clips():
+    """
+    Marks all clips shorter than 3 seconds as 'livephoto' in the DB.
+    """
+    import sqlite3 as _sqlite3
+    settings = load_settings()
+    db_path = settings.get("dbPath", os.path.join(os.path.dirname(__file__), "Video_Archive.db"))
+    conn = _sqlite3.connect(db_path, timeout=30)
+    cursor = conn.cursor()
+    
+    # Update status for clips < 3s that aren't already marked
+    cursor.execute("UPDATE videos SET status = 'livephoto' WHERE duration_sec < 3 AND (status IS NULL OR status = 'pending')")
+    hidden_count = cursor.rowcount
+    
+    # Also clean up FTS index for these clips
+    cursor.execute("DELETE FROM video_search WHERE video_id IN (SELECT id FROM videos WHERE status = 'livephoto')")
+    
+    conn.commit()
+    conn.close()
+    return {"status": "success", "hidden_count": hidden_count}
+
+
 @app.post("/api/duplicates/hide_all")
 def hide_all_duplicates():
     """

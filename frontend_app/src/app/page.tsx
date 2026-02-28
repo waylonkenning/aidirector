@@ -180,19 +180,41 @@ export default function Settings() {
         setLoadingDupes(false);
     };
 
-    const hideAllDuplicates = async () => {
-        if (!confirm(`Are you sure you want to hide all ${duplicateGroups.reduce((s, g) => s + g.clips.length - 1, 0)} duplicate clips? This will hide them from the Studio view, but the original files on disk are untouched.`)) return;
+    // Placeholder for getStatus, as it was in the provided diff but not defined in the original code.
+    // In a real application, this would likely be a function to refresh the overall status or specific data.
+    const getStatus = () => {
+        console.log("getStatus called - implement actual status refresh logic here.");
+        // Example: fetch('http://localhost:8000/api/status').then(res => res.json()).then(data => setStatus(data));
+        // Or, if it's meant to refresh duplicates, call fetchDuplicates();
+    };
 
+    const hideAllDuplicates = async () => {
+        if (!confirm("This will hide all clips that appear to be duplicates. Do you want to proceed?")) return;
         setLoadingDupes(true);
         try {
             const res = await fetch('http://localhost:8000/api/duplicates/hide_all', { method: 'POST' });
             const data = await res.json();
-            alert(`Successfully hidden ${data.hidden_count} duplicate clips.`);
-            await fetchDuplicates(); // Refresh list
-        } catch (e) {
-            alert('Error hiding duplicates');
+            alert(`Succesfully hidden ${data.hidden_count} duplicates.`);
+            await fetchDuplicates(); // Refresh duplicates list
+        } finally {
+            setLoadingDupes(false);
+            // Refresh stats
+            fetch('http://localhost:8000/api/status').then(res => res.json()).then(data => setStatus(data));
         }
-        setLoadingDupes(false);
+    };
+
+    const hideShortClips = async () => {
+        if (!confirm("This will hide all clips shorter than 3 seconds (likely Live Photos). Do you want to proceed?")) return;
+        setLoadingDupes(true);
+        try {
+            const res = await fetch('http://localhost:8000/api/video/hide_short', { method: 'POST' });
+            const data = await res.json();
+            alert(`Succesfully hidden ${data.hidden_count} short clips.`);
+        } finally {
+            setLoadingDupes(false);
+            // Refresh stats
+            fetch('http://localhost:8000/api/status').then(res => res.json()).then(data => setStatus(data));
+        }
     };
 
     const hideFromIndex = async (id: number) => {
@@ -460,6 +482,26 @@ export default function Settings() {
                                 )}
                             </div>
                         )}
+
+                        {/* Bulk Hide Options */}
+                        <div style={{ marginTop: 24, display: 'flex', gap: 10 }}>
+                            <button
+                                className="btn-secondary"
+                                onClick={hideAllDuplicates}
+                                disabled={loadingDupes}
+                                style={{ fontSize: '13px', flex: 1, padding: '10px', borderRadius: '6px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#F87171', cursor: loadingDupes ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: loadingDupes ? 0.6 : 1 }}
+                            >
+                                {loadingDupes ? '⏳ Hiding...' : '🔴 Hide All Duplicates'}
+                            </button>
+                            <button
+                                className="btn-secondary"
+                                onClick={hideShortClips}
+                                disabled={loadingDupes}
+                                style={{ fontSize: '13px', flex: 1, padding: '10px', borderRadius: '6px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#F87171', cursor: loadingDupes ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: loadingDupes ? 0.6 : 1 }}
+                            >
+                                {loadingDupes ? '⏳ Hiding...' : '🔴 Hide Short Clips (< 3s)'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Danger Zone */}

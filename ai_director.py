@@ -27,7 +27,7 @@ def get_clips_by_date(date_str):
     cursor.execute("""
         SELECT id, path, filename, duration_sec, transcription, visual_tags, created 
         FROM videos 
-        WHERE date(created) = ? AND (status IS NULL OR status != 'duplicate')
+        WHERE date(created) = ? AND (status IS NULL OR status NOT IN ('duplicate', 'livephoto'))
         ORDER BY filename ASC
     """, (date_str,))
     rows = cursor.fetchall()
@@ -41,7 +41,7 @@ def get_clips_by_query(query):
         SELECT id, path, filename, duration_sec, transcription, visual_tags, created FROM videos 
         WHERE (id IN (SELECT video_id FROM video_search WHERE transcription MATCH ?)
         OR visual_tags LIKE ?)
-        AND (status IS NULL OR status != 'duplicate')
+        AND (status IS NULL OR status NOT IN ('duplicate', 'livephoto'))
         ORDER BY created ASC
     ''', (query, f"%{query}%"))
     rows = cursor.fetchall()
@@ -51,10 +51,10 @@ def get_clips_by_query(query):
 def get_db_stats():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM videos WHERE (status IS NULL OR status != 'duplicate')")
+    cursor.execute("SELECT COUNT(*) FROM videos WHERE (status IS NULL OR status NOT IN ('duplicate', 'livephoto'))")
     total = cursor.fetchone()[0]
     
-    cursor.execute("SELECT COUNT(*) FROM videos WHERE transcription IS NOT NULL AND transcription != '' AND (status IS NULL OR status != 'duplicate')")
+    cursor.execute("SELECT COUNT(*) FROM videos WHERE transcription IS NOT NULL AND transcription != '' AND (status IS NULL OR status NOT IN ('duplicate', 'livephoto'))")
     transcribed = cursor.fetchone()[0]
     
     # Get grouped timeline counts for calendar UI dots
