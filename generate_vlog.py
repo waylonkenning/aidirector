@@ -287,16 +287,20 @@ def main():
             titled_scene_file = final_scene_file.replace(".mp4", "_titled.mp4")
             print(f"Applying lower third to scene {i}: '{title}'", flush=True)
             
-            # Filter: drawbox (semi-transparent bar) + drawtext
-            # Applies for first 3 seconds (between(t,0,3))
+            # Create a separate transparent stream for the lower third
+            # Duration of 5 seconds: Fade in for 1s, hold for 3s, fade out for 1s.
+            # Alpha faded then overlaid onto the main video.
             lt_filter = (
-                f"drawbox=y=ih-h-40:color=black@0.6:width=iw:height=60:t=fill:enable='between(t,0,3)',"
-                f"drawtext=text='{title}':fontcolor=white:fontsize=36:x=40:y=h-th-50:fontfile={macos_font}:enable='between(t,0,3)'"
+                f"color=c=black@0.0:s=1280x720:d=5:rate=30000/1001,format=rgba [bg]; "
+                f"[bg]drawbox=y=ih-h-40:color=black@0.6:width=iw:height=60:t=fill,"
+                f"drawtext=text='{title}':fontcolor=white:fontsize=36:x=40:y=h-th-50:fontfile={macos_font} [lt]; "
+                f"[lt]fade=t=in:st=0:d=1:alpha=1,fade=t=out:st=4:d=1:alpha=1 [lt_faded]; "
+                f"[0:v][lt_faded]overlay=eof_action=pass:shortest=0"
             )
             
             lt_cmd = [
                 'ffmpeg', '-i', final_scene_file,
-                '-vf', lt_filter,
+                '-filter_complex', lt_filter,
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
                 '-c:a', 'copy', '-y', titled_scene_file
             ]

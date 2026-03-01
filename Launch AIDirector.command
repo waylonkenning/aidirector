@@ -9,8 +9,16 @@ echo "Cleaning up ports 8000 and 3000..."
 lsof -ti:8000 | xargs kill -9 >/dev/null 2>&1 || true
 lsof -ti:3000 | xargs kill -9 >/dev/null 2>&1 || true
 
+# Next.js starts parent and worker processes. `lsof` on port 3000 only kills the worker, 
+# leaving the parent holding the .next/dev/lock which causes subsequent launches to hang.
+pkill -f "next dev" >/dev/null 2>&1 || true
+rm -f frontend_app/.next/dev/lock >/dev/null 2>&1 || true
+
 # Setup trap to kill background processes when script exits
 trap 'kill $(jobs -p)' EXIT
+
+# Export explicitly to prevent any hung/interactive prompts on first startup
+export NEXT_TELEMETRY_DISABLED=1
 
 # Check and install backend dependencies if missing
 echo "Checking Backend Environment..."
