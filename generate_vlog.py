@@ -291,11 +291,10 @@ def main():
             # Duration of 5 seconds: Fade in for 1s, hold for 3s, fade out for 1s.
             # Alpha faded then overlaid onto the main video.
             lt_filter = (
-                f"color=c=black@0.0:s=1280x720:d=5:rate=30000/1001,format=rgba [bg]; "
-                f"[bg]drawbox=y=ih-h-40:color=black@0.6:width=iw:height=60:t=fill,"
-                f"drawtext=text='{title}':fontcolor=white:fontsize=36:x=40:y=h-th-50:fontfile={macos_font} [lt]; "
+                f"color=c=black@0.6:s=1280x60:d=5:rate=30000/1001,format=rgba [box]; "
+                f"[box]drawtext=text='{title}':fontcolor=white:fontsize=36:x=40:y=(h-th)/2:fontfile={macos_font} [lt]; "
                 f"[lt]fade=t=in:st=0:d=1:alpha=1,fade=t=out:st=4:d=1:alpha=1 [lt_faded]; "
-                f"[0:v][lt_faded]overlay=eof_action=pass:shortest=0"
+                f"[0:v][lt_faded]overlay=x=0:y=H-h-40:eof_action=pass:shortest=0"
             )
             
             lt_cmd = [

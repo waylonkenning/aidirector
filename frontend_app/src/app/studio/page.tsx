@@ -659,6 +659,9 @@ export default function Studio() {
         );
     };
 
+    // Only check for strictly null transcription, meaning it hasn't been processed by Whisper yet
+    const hasUntranscribedSelected = clips.some((c: any) => selectedClipIds.has(c.id) && c.transcription === null);
+
     return (
         <div>
             {/* Hero Header unified panel */}
@@ -794,9 +797,11 @@ export default function Studio() {
                             <button className="btn-secondary" onClick={upgradeClips} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span>🎙️</span> {isUpgrading ? 'Upgrading...' : `Transcribe Clips (${selectedClipIds.size})`}
                             </button>
-                            <button className="btn-primary" onClick={generatePlan} disabled={loading || isUpgrading || selectedClipIds.size === 0} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🎬</span> Generate Story Plan {selectedClipIds.size > 0 && selectedClipIds.size < clips.length ? `(${selectedClipIds.size} clips)` : ''}
-                            </button>
+                            <div title={hasUntranscribedSelected ? "Transcribe Clips first" : undefined} style={{ cursor: hasUntranscribedSelected ? 'not-allowed' : 'default' }}>
+                                <button className="btn-primary" onClick={generatePlan} disabled={loading || isUpgrading || selectedClipIds.size === 0 || hasUntranscribedSelected} style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: hasUntranscribedSelected ? 'none' : 'auto' }}>
+                                    <span>🎬</span> Generate Story Plan {selectedClipIds.size > 0 && selectedClipIds.size < clips.length ? `(${selectedClipIds.size} clips)` : ''}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -814,7 +819,14 @@ export default function Studio() {
                         {paginatedClips.map((c: any) => {
                             const wordCount = c.transcription ? c.transcription.split(/\s+/).length : 0;
                             const isBRollTag = c.visual_tags?.toLowerCase().includes('b-roll');
-                            const role = (isBRollTag || wordCount <= 12) ? 'b-roll' : 'a-roll';
+
+                            let role = 'a-roll';
+                            if (c.transcription === null) {
+                                role = 'unprocessed';
+                            } else if (isBRollTag || wordCount <= 12) {
+                                role = 'b-roll';
+                            }
+
                             const displayTags = c.visual_tags?.split(',').map((t: string) => t.trim()).filter((t: string) => t.toLowerCase() !== 'b-roll').slice(0, 3) || [];
                             const thumbSrc = `http://localhost:8000/api/thumbnail?path=${encodeURIComponent(c.path)}&t=2`;
 

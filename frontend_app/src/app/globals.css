@@ -281,6 +281,16 @@ input[type="text"]:focus {
   box-shadow: 0 12px 24px -8px rgba(59, 130, 246, 0.25);
 }
 
+.clip-card.unprocessed {
+  background: rgba(156, 163, 175, 0.04);
+  border-color: rgba(156, 163, 175, 0.2);
+}
+
+.clip-card.unprocessed:hover {
+  border-color: rgba(156, 163, 175, 0.6);
+  box-shadow: 0 12px 24px -8px rgba(156, 163, 175, 0.25);
+}
+
 .tag.a-roll-tag {
   background: rgba(16, 185, 129, 0.15);
   color: #34d399;
@@ -291,6 +301,12 @@ input[type="text"]:focus {
   background: rgba(59, 130, 246, 0.15);
   color: #60a5fa;
   border-color: rgba(59, 130, 246, 0.3);
+}
+
+.tag.unprocessed-tag {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+  border-color: rgba(156, 163, 175, 0.3);
 }
 
 /* Minimalist Calendar UI for Hero Panel */
