@@ -22,3 +22,12 @@ STORY_PLAN_*.md
 # Runtime config (contains user-specific paths)
 backend/settings.json
 backend/settings*.json
+
+# Secrets and credentials
+client_secrets.json
+*.pickle
+
+# Temporary test artifacts
+*.png
+dummy_white.mp4
+output_white.mp4
