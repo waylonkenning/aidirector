@@ -444,6 +444,7 @@ export default function Studio() {
     const [fadeToBlack, setFadeToBlack] = useState(false);
     const [lowerThirds, setLowerThirds] = useState<Set<number>>(new Set());
     const [globalLowerThirds, setGlobalLowerThirds] = useState(false);
+    const [autoUpload, setAutoUpload] = useState(false);
 
     // Opt 18: Shared SSE hook — replaces 4 duplicated read loops.
     const sseStream = useSSEStream();
@@ -640,6 +641,7 @@ export default function Studio() {
                     fade_to_black: fadeToBlack,
                     scene_titles: sceneTitles,
                     lower_thirds: Array.from(lowerThirds),
+                    auto_upload: autoUpload,
                 })
             },
             (parsed) => {
@@ -963,6 +965,16 @@ export default function Studio() {
                                         style={{ width: 14, height: 14, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                                     />
                                     Lower thirds on all
+                                </label>
+                                {/* Auto Upload to YouTube toggle */}
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', userSelect: 'none' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={autoUpload}
+                                        onChange={e => setAutoUpload(e.target.checked)}
+                                        style={{ width: 14, height: 14, accentColor: '#ff0000', cursor: 'pointer' }}
+                                    />
+                                    🚀 Auto Upload (Private)
                                 </label>
                                 <button
                                     className="btn-primary"

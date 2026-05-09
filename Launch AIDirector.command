@@ -24,14 +24,12 @@ export NEXT_TELEMETRY_DISABLED=1
 echo "Checking Backend Environment..."
 cd backend
 if [ ! -d "venv" ]; then
-    echo "First time setup: Installing Python dependencies (this may take a few minutes)..."
+    echo "First time setup: Creating virtual environment..."
     python3 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-else
-    source venv/bin/activate
 fi
+source venv/bin/activate
+echo "Ensuring Python dependencies are up to date..."
+pip install -r requirements.txt
 
 # Start FastAPI backend in the background
 echo "Launching Backend..."

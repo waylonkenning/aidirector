@@ -25,6 +25,8 @@ import json
 import ai_director
 import generate_vlog
 import director_engine
+import video_metadata
+from youtube_uploader import YouTubeUploader
 
 app = FastAPI(title="AI Director App API")
 
@@ -670,6 +672,7 @@ class BuildRequest(BaseModel):
     fade_to_black: bool = False
     scene_titles: dict[int, str] = {}
     lower_thirds: list[int] = []
+    auto_upload: bool = False
 
 
 @app.post("/api/build")
@@ -705,6 +708,29 @@ def build_video(req: BuildRequest):
                 # Check for the final success token
                 if line.startswith("SUCCESS: Created"):
                     final_path = line.replace("SUCCESS: Created", "").strip()
+                    
+                    if req.auto_upload:
+                        yield f"data: {json.dumps({'status': 'Generating YouTube metadata...'})}\n\n"
+                        try:
+                            title, description = video_metadata.generate_metadata(req.plan_path)
+                            
+                            yield f"data: {json.dumps({'status': 'Extracting thumbnail...'})}\n\n"
+                            thumb_path = final_path.replace(".mp4", "_thumb.jpg")
+                            video_metadata.extract_thumbnail(final_path, thumb_path)
+                            
+                            yield f"data: {json.dumps({'status': 'Uploading to YouTube (Private)...'})}\n\n"
+                            uploader = YouTubeUploader()
+                            video_id = uploader.upload_video(
+                                final_path, 
+                                title=title, 
+                                description=description, 
+                                thumbnail_path=thumb_path
+                            )
+                            yield f"data: {json.dumps({'status': f'YouTube Upload Successful! ID: {video_id}'})}\n\n"
+                            yield f"data: {json.dumps({'youtube_id': video_id})}\n\n"
+                        except Exception as upload_err:
+                            yield f"data: {json.dumps({'status': f'YouTube Upload failed: {str(upload_err)}'})}\n\n"
+
                     yield f"data: {json.dumps({'done': final_path})}\n\n"
                     success_sent = True
                 else:

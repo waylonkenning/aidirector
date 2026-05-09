@@ -5,3 +5,6 @@ python-dotenv
 google-generativeai
 mlx-whisper
 mlx-vlm
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
